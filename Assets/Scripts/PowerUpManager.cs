@@ -67,11 +67,11 @@ public class PowerUpManager : MonoBehaviour
     {
         int currentPowerLevel = player.powerLevel;
         player.powerLevel = 4;
-        shield.SetActive(true);
+        bullets.SetActive(true);
         // TODO: Any value can be inputed here, I am using 4
         // Guns a' blazing
         yield return new WaitForSeconds(duration);
-        shield.SetActive(false);
+        bullets.SetActive(false);
         player.powerLevel = currentPowerLevel;
     }
 
