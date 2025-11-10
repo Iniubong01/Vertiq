@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using DG.Tweening;
+using UnityEngine;
 
 [RequireComponent(typeof(SpriteRenderer))]
 [RequireComponent(typeof(Rigidbody2D))]
@@ -15,7 +16,7 @@ public class Asteroid : MonoBehaviour
     public float maxSize = 1.65f;
     public float movementSpeed = 50f;
     public float maxLifetime = 30f;
-
+    private SpriteRenderer sprite;
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -23,6 +24,8 @@ public class Asteroid : MonoBehaviour
 
     private void Start()
     {
+        sprite = GetComponent<SpriteRenderer>();
+
         // Assign random properties to make each asteroid feel unique
         transform.eulerAngles = new Vector3(0f, 0f, Random.value * 360f);
 
@@ -58,6 +61,8 @@ public class Asteroid : MonoBehaviour
 
             // Destroy the current asteroid since it is either replaced by two
             // new asteroids or small enough to be destroyed by the bullet
+            
+            sprite.DOFade(0, 0.01f);
             Destroy(this.gameObject);
             Debug.LogWarning("Died!");
         }
