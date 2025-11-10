@@ -19,13 +19,11 @@ public class Asteroid : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
     }
 
     private void Start()
     {
         // Assign random properties to make each asteroid feel unique
-        spriteRenderer.sprite = sprites[Random.Range(0, sprites.Length)];
         transform.eulerAngles = new Vector3(0f, 0f, Random.value * 360f);
 
         // Set the scale and mass of the asteroid based on the assigned size so
