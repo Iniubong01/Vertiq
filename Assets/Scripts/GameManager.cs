@@ -197,13 +197,7 @@ public class GameManager : MonoBehaviour
 
     public void Home()
     {
-       StartCoroutine(LoadHome());
-    }
-
-    private IEnumerator LoadHome()
-    {
         Time.timeScale = 1;
-        yield return new WaitForSeconds(0.2f);
         SceneManager.LoadScene("Splash");
     }
 

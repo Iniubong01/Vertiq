@@ -28,22 +28,6 @@ public class UIManager : MonoBehaviour
     [SerializeField] GameObject [] fullLivesIndicators;
     [SerializeField] GameObject [] freezeTimeIndicators;
 
-    private static UIManager Instance;
-
-    private void Awake()
-    {
-        if(Instance != null)
-        {
-            Destroy(gameObject);
-            return;
-        }
-        else
-        {
-            Instance = this;
-        }
-        
-        DontDestroyOnLoad(gameObject);
-    }
     private void Start()
     {
         StartCoroutine(CloseSplashThenLoadMain());
@@ -182,18 +166,19 @@ public class UIManager : MonoBehaviour
         SoundManager.Instance.PlayButtonSound();
     }
 
-    private void checkInteractivity_PowerUpPurchaseButtons()
+    public void checkInteractivity_PowerUpPurchaseButtons()
     {
         foreach(var btn in powerUpPurchaseButtons)
         {
             btn.interactable = ShopData.Instance.coins >= 50;
         }
     }
-    private void checkInteractivity_CoinPurchaseButton()
+    public void checkInteractivity_CoinPurchaseButton()
     {
-        foreach(var btn in powerUpPurchaseButtons)
+        foreach(var btn in coinPurchaseButtons)
         {
-            btn.interactable = ShopData.Instance.coins >= 50;
+            // TODO: Change here to "ShopData.Instance.Solana or so.."
+            // btn.interactable = ShopData.Instance.coins >= 50;
         }
     }
 

@@ -2781,7 +2781,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: Quit
+  m_Text: Main Menu
 --- !u!222 &865774874
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -4753,7 +4753,7 @@ GameObject:
   - component: {fileID: 1373743203}
   - component: {fileID: 1373743202}
   m_Layer: 5
-  m_Name: Quit Button
+  m_Name: Home Button
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4839,7 +4839,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 302003422}
         m_TargetAssemblyTypeName: GameManager, Assembly-CSharp
-        m_MethodName: QuitGame
+        m_MethodName: Home
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -7330,18 +7330,18 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 12800000, guid: 59e1beb5807ac9643bf665e453e2cfb7, type: 3}
-    m_FontSize: 20
+    m_FontSize: 21
     m_FontStyle: 1
     m_BestFit: 1
     m_MinSize: 0
-    m_MaxSize: 20
+    m_MaxSize: 21
     m_Alignment: 3
     m_AlignByGeometry: 0
     m_RichText: 1
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: 1234567
+  m_Text: 00
 --- !u!222 &1841424237
 CanvasRenderer:
   m_ObjectHideFlags: 0

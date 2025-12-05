@@ -145,40 +145,40 @@ public class PowerUpManager : MonoBehaviour
     {
         if(ShopData.Instance.powerupFullLives <= 0) return;
         
-        UpdateTexts();
         ActivatePowerUp(PowerUpType.FullLives, powerUpDuration);
         ShopData.Instance.UsePowerup("fulllives");
         Debug.Log($"Activated {PowerUpType.FullLives}");
+        FL_AmountText.text = ShopData.Instance.powerupFullLives.ToString();
     }
 
     public void FreezeTimeBL()
     {
         if(ShopData.Instance.powerupFreezeTime <= 0) return;
 
-        UpdateTexts();
         ShopData.Instance.UsePowerup("freezetime");
         ActivatePowerUp(PowerUpType.FreezeTime, powerUpDuration);
         Debug.Log($"Activated {PowerUpType.FreezeTime}");
+        FT_AmountText.text = ShopData.Instance.powerupFreezeTime.ToString();
     }
 
     public void MultipleBulletsBL()
     {
         if(ShopData.Instance.powerupMultipleBullets <= 0) return;
 
-        UpdateTexts();
         ShopData.Instance.UsePowerup("bullets");
         StartCoroutine(HandleMultipleBullets(powerUpDuration));
         Debug.Log($"Activated {PowerUpType.MultipleBullets}");
+        MB_AmountText.text = ShopData.Instance.powerupMultipleBullets.ToString();
     }
 
     public void ShieldBL()
     {
         if(ShopData.Instance.powerupShield <= 0) return;
 
-        UpdateTexts();
         ShopData.Instance.UsePowerup("shield");
         StartCoroutine(HandleShield(powerUpDuration));
         Debug.Log($"Activated {PowerUpType.Shield}");
+        S_AmountText.text = ShopData.Instance.powerupShield.ToString();
     }
 }
 
