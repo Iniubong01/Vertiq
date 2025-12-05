@@ -117,7 +117,7 @@ public class Player : MonoBehaviour
         }
     }
 
-    private void Shoot()
+    public void Shoot()
     {
         int bulletCount = Mathf.Clamp(powerLevel, 1, 10);
         float totalSpread = (bulletCount - 1) * spreadAngle;

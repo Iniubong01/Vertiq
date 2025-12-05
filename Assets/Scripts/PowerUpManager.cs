@@ -1,5 +1,7 @@
 using UnityEngine;
 using System.Collections;
+using UnityEngine.UI;
+using TMPro;
 
 public class PowerUpManager : MonoBehaviour
 {
@@ -17,6 +19,11 @@ public class PowerUpManager : MonoBehaviour
     private Player player;
     public GameObject shield, bullets;
 
+    [SerializeField] Button SButton, FTButton, MBButton, FLButton; // Using initials of power up buttons
+    [HideInInspector] public int shieldPUA, freezeTimePUA, multipleBulletsPUA, fullLivesPUA; // PUA means Power Up Amount
+
+    [SerializeField] TextMeshProUGUI S_AmountText, FT_AmountText, MB_AmountText, FL_AmountText; 
+
     private void Awake()
     {
         Instance = this;
@@ -26,8 +33,12 @@ public class PowerUpManager : MonoBehaviour
     private void Start()
     {
         player = GameObject.Find("Player").GetComponent<Player>();
-        // InvokeRepeating(nameof(SpawnPowerUps), spawnRate, spawnRate);
-        // Line responsible for spawning the powerups, commented out as we are using a different approach
+        SButton.onClick.AddListener(ShieldBL);
+        FTButton.onClick.AddListener(FreezeTimeBL);
+        MBButton.onClick.AddListener(MultipleBulletsBL);
+        FLButton.onClick.AddListener(FullLivesBL);
+
+        UpdateTexts();
     }
 
     public void ActivatePowerUp(PowerUpType type, float duration)
@@ -50,6 +61,14 @@ public class PowerUpManager : MonoBehaviour
             StartCoroutine(HandleLiveAddition(duration));
             break;
         }
+    }
+
+    void UpdateTexts()
+    {
+        S_AmountText.text = ShopData.Instance.powerupShield.ToString();
+        FT_AmountText.text = ShopData.Instance.powerupFreezeTime.ToString();
+        MB_AmountText.text = ShopData.Instance.powerupMultipleBullets.ToString();
+        FL_AmountText.text = ShopData.Instance.powerupFullLives.ToString();
     }
 
     private IEnumerator HandleShield(float duration)
@@ -113,27 +132,51 @@ public class PowerUpManager : MonoBehaviour
         Instantiate(PowerUps[index], spawnPoint, rotation);
     }
 
-    // BL means Button Link
+    private void Update()
+    {
+        SButton.interactable = ShopData.Instance.powerupShield > 0;
+        FTButton.interactable = ShopData.Instance.powerupFreezeTime > 0;
+        MBButton.interactable = ShopData.Instance.powerupMultipleBullets > 0;
+        FLButton.interactable = ShopData.Instance.powerupFullLives > 0;
+    }
+
+    //? BL means Button Link
     public void FullLivesBL()
     {
+        if(ShopData.Instance.powerupFullLives <= 0) return;
+        
+        UpdateTexts();
         ActivatePowerUp(PowerUpType.FullLives, powerUpDuration);
+        ShopData.Instance.UsePowerup("fulllives");
         Debug.Log($"Activated {PowerUpType.FullLives}");
     }
 
     public void FreezeTimeBL()
     {
+        if(ShopData.Instance.powerupFreezeTime <= 0) return;
+
+        UpdateTexts();
+        ShopData.Instance.UsePowerup("freezetime");
         ActivatePowerUp(PowerUpType.FreezeTime, powerUpDuration);
         Debug.Log($"Activated {PowerUpType.FreezeTime}");
     }
 
     public void MultipleBulletsBL()
     {
+        if(ShopData.Instance.powerupMultipleBullets <= 0) return;
+
+        UpdateTexts();
+        ShopData.Instance.UsePowerup("bullets");
         StartCoroutine(HandleMultipleBullets(powerUpDuration));
         Debug.Log($"Activated {PowerUpType.MultipleBullets}");
     }
 
     public void ShieldBL()
     {
+        if(ShopData.Instance.powerupShield <= 0) return;
+
+        UpdateTexts();
+        ShopData.Instance.UsePowerup("shield");
         StartCoroutine(HandleShield(powerUpDuration));
         Debug.Log($"Activated {PowerUpType.Shield}");
     }
