@@ -59,12 +59,19 @@ public class UIManager : MonoBehaviour
             coinPurchaseButtons[3].onClick.AddListener(BuyCoinsPack200);
         }
 
-        checkInteractivity_PowerUpPurchaseButtons();
+        checkInteractivity_ShieldButton();
+        checkInteractivity_MultipleBulletButton();
+        checkInteractivity_FullLivesButton();
+        checkInteractivity_FreezeTimeButton();
+
         UpdateShieldVisuals();
         UpdateFreezeTimeVisuals();
         UpdateFullLivesVisuals();
         UpdateMultipleBulletsVisuals();
-        UpdateUI();
+
+        // TODO: BEFORE BUILD CLEAR PREFS, ENABLE THIS LINE ONCE, THEN COMMENT IT OUT
+        // ShopData.Instance.AddCoins(500); // Give users a default coin value
+        UpdateUI();  // Update UI to match
     }
 
     private void PlayClickSound()
@@ -204,15 +211,27 @@ public class UIManager : MonoBehaviour
 
     // --- POWERUPS & VISUALS ---
 
-    public void checkInteractivity_PowerUpPurchaseButtons()
+    public void checkInteractivity_ShieldButton()
     {
-        foreach (var btn in powerUpPurchaseButtons) btn.interactable = ShopData.Instance.coins >= 50;
+        powerUpPurchaseButtons[0].interactable = ShopData.Instance.coins >= 50;
+    }
+    public void checkInteractivity_MultipleBulletButton()
+    {
+        powerUpPurchaseButtons[1].interactable = ShopData.Instance.coins >= 50;
+    }
+    public void checkInteractivity_FullLivesButton()
+    {
+        powerUpPurchaseButtons[2].interactable = ShopData.Instance.coins >= 50;
+    }
+    public void checkInteractivity_FreezeTimeButton()
+    {
+        powerUpPurchaseButtons[3].interactable = ShopData.Instance.coins >= 50;
     }
 
     public void BuyShieldPowerup() { BuyPowerup("shield", shieldIndicators, UpdateShieldVisuals); }
-    public void BuyMultipleBullets() { BuyPowerup("bullets", multipleBulletsIndicators, UpdateMultipleBulletsVisuals); }
-    public void BuyFreezeTime() { BuyPowerup("freezetime", freezeTimeIndicators, UpdateFreezeTimeVisuals); }
-    public void BuyFullLives() { BuyPowerup("fulllives", fullLivesIndicators, UpdateFullLivesVisuals); }
+    public void BuyMultipleBullets() { BuyPowerupI("bullets", multipleBulletsIndicators, UpdateMultipleBulletsVisuals); }
+    public void BuyFreezeTime() { BuyPowerupII("freezetime", freezeTimeIndicators, UpdateFreezeTimeVisuals); }
+    public void BuyFullLives() { BuyPowerupIII("fulllives", fullLivesIndicators, UpdateFullLivesVisuals); }
 
     private void BuyPowerup(string id, GameObject[] indicators, System.Action updateVisuals)
     {
@@ -223,7 +242,46 @@ public class UIManager : MonoBehaviour
             if(indicators.Length > 0) indicators[0].gameObject.SetActive(true); // Temp visual
             updateVisuals?.Invoke();
             UpdateUI();
-            checkInteractivity_PowerUpPurchaseButtons();
+            checkInteractivity_ShieldButton();
+        }
+        else Debug.Log("Not enough coins!");
+    }
+    private void BuyPowerupI(string id, GameObject[] indicators, System.Action updateVisuals)
+    {
+        PlayClickSound();
+        if (ShopData.Instance.SpendCoins(75))
+        {
+            ShopData.Instance.AddPowerup(id);
+            if(indicators.Length > 0) indicators[0].gameObject.SetActive(true); // Temp visual
+            updateVisuals?.Invoke();
+            UpdateUI();
+            checkInteractivity_MultipleBulletButton();
+        }
+        else Debug.Log("Not enough coins!");
+    }
+    private void BuyPowerupII(string id, GameObject[] indicators, System.Action updateVisuals)
+    {
+        PlayClickSound();
+        if (ShopData.Instance.SpendCoins(145))
+        {
+            ShopData.Instance.AddPowerup(id);
+            if(indicators.Length > 0) indicators[0].gameObject.SetActive(true); // Temp visual
+            updateVisuals?.Invoke();
+            UpdateUI();
+            checkInteractivity_FreezeTimeButton();
+        }
+        else Debug.Log("Not enough coins!");
+    }
+    private void BuyPowerupIII(string id, GameObject[] indicators, System.Action updateVisuals)
+    {
+        PlayClickSound();
+        if (ShopData.Instance.SpendCoins(115))
+        {
+            ShopData.Instance.AddPowerup(id);
+            if(indicators.Length > 0) indicators[0].gameObject.SetActive(true); // Temp visual
+            updateVisuals?.Invoke();
+            UpdateUI();
+            checkInteractivity_FullLivesButton();
         }
         else Debug.Log("Not enough coins!");
     }

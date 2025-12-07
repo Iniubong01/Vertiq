@@ -1914,7 +1914,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 463.4, y: -216}
+  m_AnchoredPosition: {x: 463.40002, y: -216}
   m_SizeDelta: {x: 201.333, y: 51.9115}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &152567654
@@ -4690,7 +4690,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 157.79999, y: -76.5}
+  m_AnchoredPosition: {x: 157.79993, y: -76.5}
   m_SizeDelta: {x: 103.4791, y: 75.026}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &488217168
@@ -9228,7 +9228,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 50
+  m_text: 115
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 38947824edde2e14682ca41204f6c5ea, type: 2}
   m_sharedMaterial: {fileID: 4468349231276967084, guid: 38947824edde2e14682ca41204f6c5ea,
@@ -9502,7 +9502,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 50
+  m_text: 75
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 38947824edde2e14682ca41204f6c5ea, type: 2}
   m_sharedMaterial: {fileID: 4468349231276967084, guid: 38947824edde2e14682ca41204f6c5ea,
@@ -11117,7 +11117,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 157.79999, y: -76.5}
+  m_AnchoredPosition: {x: 157.79993, y: -76.5}
   m_SizeDelta: {x: 103.4791, y: 75.026}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1273453681
@@ -18027,7 +18027,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 50
+  m_text: 145
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 38947824edde2e14682ca41204f6c5ea, type: 2}
   m_sharedMaterial: {fileID: 4468349231276967084, guid: 38947824edde2e14682ca41204f6c5ea,
@@ -18931,7 +18931,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7e19bcf160093f940bc24d2c38024957, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  deathSound: {fileID: 8300000, guid: 9bf6dcdc62837e6479ad5fd690b46509, type: 3}
+  deathSound: {fileID: 8300000, guid: 928f026600ba9024ab215462ec9c62d8, type: 3}
   buttonSound: {fileID: 8300000, guid: e5c83237150db0045952f65f85e962a4, type: 3}
 --- !u!224 &738946646564682919
 RectTransform:
@@ -19453,7 +19453,7 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
-  m_Resource: {fileID: 8300000, guid: 0185af3b23a112647a0fa8b45e5badc3, type: 3}
+  m_Resource: {fileID: 8300000, guid: b6a7c2f2949e36949a19e018efee1886, type: 3}
   m_PlayOnAwake: 1
   m_Volume: 1
   m_Pitch: 1

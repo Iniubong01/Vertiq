@@ -2,45 +2,85 @@
 
 public class AsteroidSpawner : MonoBehaviour
 {
-    public Asteroid [] asteroidPrefab;
+    [Header("Asteroid Settings")]
+    public Asteroid[] asteroidPrefab;
     public float spawnDistance = 12f;
-    public float spawnRate = 1f;
-    public int amountPerSpawn = 1;
+    public int baseAmountPerSpawn = 1;
+    public int maxAmountPerSpawn = 5;
+
     [Range(0f, 45f)]
     public float trajectoryVariance = 15f;
-    private AudioSource audioSource;
+
+    [Header("Difficulty Settings")]
+    public float startSpawnInterval = 1f;       // Slowest (beginning)
+    public float minimumSpawnInterval = 0.25f;  // Fastest allowed
+    public float difficultyRampTime = 90f;      // How long to reach max speed
+
+    [Tooltip("Extra multiplier that increases the amount of asteroids per wave over time.")]
+    public float amountRamp = 0.02f;            // 0 = disabled, 0.02 = grows slowly
+
+    [Header("Audio")]
     [SerializeField] private AudioClip spawnSound;
+
+    private AudioSource audioSource;
+
+    private float elapsedTime = 0f;
+    private float spawnTimer = 0f;
+    private float currentSpawnInterval = 1f;
 
     private void Start()
     {
         audioSource = GetComponent<AudioSource>();
-        InvokeRepeating(nameof(Spawn), spawnRate, spawnRate);
+
+        // Start interval
+        currentSpawnInterval = startSpawnInterval;
     }
 
-    public void Spawn()
+    private void Update()
     {
-        audioSource.PlayOneShot(spawnSound);
-        
-        for (int i = 0; i < amountPerSpawn; i++)
+        // Time alive = difficulty
+        elapsedTime += Time.deltaTime;
+
+        // Difficulty lerp (0 → 1)
+        float t = Mathf.Clamp01(elapsedTime / difficultyRampTime);
+
+        // Interval shrinks as time increases
+        currentSpawnInterval = Mathf.Lerp(startSpawnInterval, minimumSpawnInterval, t);
+
+        // Spawn timing
+        spawnTimer += Time.deltaTime;
+        if (spawnTimer >= currentSpawnInterval)
         {
-            // Choose a random direction from the center of the spawner and
-            // spawn the asteroid a distance away
+            spawnTimer = 0f;
+
+            // Amount increases over time
+            int amountThisWave = Mathf.Clamp(
+                baseAmountPerSpawn + Mathf.FloorToInt(elapsedTime * amountRamp),
+                baseAmountPerSpawn,
+                maxAmountPerSpawn
+            );
+
+            Spawn(amountThisWave);
+        }
+    }
+
+    private void Spawn(int amount)
+    {
+        if (spawnSound != null)
+            audioSource.PlayOneShot(spawnSound);
+
+        for (int i = 0; i < amount; i++)
+        {
             Vector3 spawnDirection = Random.insideUnitCircle.normalized;
             Vector3 spawnPoint = transform.position + (spawnDirection * spawnDistance);
 
-            // Calculate a random variance in the asteroid's rotation which will
-            // cause its trajectory to change
             float variance = Random.Range(-trajectoryVariance, trajectoryVariance);
             Quaternion rotation = Quaternion.AngleAxis(variance, Vector3.forward);
-
-            // Create the new asteroid by cloning the prefab and set a random
-            // size within the range
 
             int index = Random.Range(0, asteroidPrefab.Length);
             Asteroid asteroid = Instantiate(asteroidPrefab[index], spawnPoint, rotation);
             asteroid.size = Random.Range(asteroid.minSize, asteroid.maxSize);
 
-            // Set the trajectory to move in the direction of the spawner
             Vector2 trajectory = rotation * -spawnDirection;
             asteroid.SetTrajectory(trajectory);
         }
