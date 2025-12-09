@@ -15232,7 +15232,7 @@ MonoBehaviour:
   tokenBalanceText: {fileID: 92739942}
   tokenMintAddress: 
   autoRefresh: 1
-  refreshInterval: 1
+  refreshInterval: 0.5
 --- !u!114 &1740277884
 MonoBehaviour:
   m_ObjectHideFlags: 0
