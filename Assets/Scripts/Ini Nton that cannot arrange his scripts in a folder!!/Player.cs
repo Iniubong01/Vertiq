@@ -138,6 +138,7 @@ public class Player : MonoBehaviour
         if (collision.gameObject.tag == "Asteroid" && !PowerUpManager.Instance.shieldActive)
         {
             GameManager.Instance.OnPlayerDeath(this);
+
         }
     }
 

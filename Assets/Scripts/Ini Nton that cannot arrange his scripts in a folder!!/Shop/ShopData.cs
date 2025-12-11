@@ -73,7 +73,8 @@ public class ShopData : MonoBehaviour
         PlayerPrefs.SetInt("Coins", coins);
         PlayerPrefs.SetInt("PU_Shield", powerupShield);
         PlayerPrefs.SetInt("PU_MultipleBullets", powerupMultipleBullets);
-        PlayerPrefs.SetInt("PU_FullLives", powerupFreezeTime);
+        PlayerPrefs.SetInt("PU_FreezeTime", powerupFreezeTime);
+        PlayerPrefs.SetInt("PU_FullLives", powerupFullLives);
         PlayerPrefs.Save();
     }
 
@@ -82,6 +83,7 @@ public class ShopData : MonoBehaviour
         coins = PlayerPrefs.GetInt("Coins", 0);
         powerupShield = PlayerPrefs.GetInt("PU_Shield", 0);
         powerupMultipleBullets = PlayerPrefs.GetInt("PU_MultipleBullets", 0);
-        powerupFreezeTime = PlayerPrefs.GetInt("PU_FullLives", 0);
+        powerupFreezeTime = PlayerPrefs.GetInt("PU_FreezeTime", 0);
+        powerupFullLives = PlayerPrefs.GetInt("PU_FullLives", 0);
     }
 }

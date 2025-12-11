@@ -84,11 +84,21 @@ public class UIManager : MonoBehaviour
     {
         if (!PlayerPrefs.HasKey("FirstTimeCoinGift"))
         {
-            ShopData.Instance.AddCoins(500);   // Give reward once
+            ShopData.Instance.AddCoins(750);   // Give reward once
             PlayerPrefs.SetInt("FirstTimeCoinGift", 1);
             PlayerPrefs.Save();
+            
+            // Grant 2  of each powerup
+            ShopData.Instance.AddPowerup("shield");
+            ShopData.Instance.AddPowerup("shield");
+            ShopData.Instance.AddPowerup("bullets");
+            ShopData.Instance.AddPowerup("bullets");
+            ShopData.Instance.AddPowerup("freezetime");
+            ShopData.Instance.AddPowerup("freezetime");
+            ShopData.Instance.AddPowerup("fulllives");
+            ShopData.Instance.AddPowerup("fulllives");
 
-            Debug.Log("First-time 500 coin gift granted!");
+            Debug.Log("First-time 750 coin and power ups granted!");
         }
         else
         {

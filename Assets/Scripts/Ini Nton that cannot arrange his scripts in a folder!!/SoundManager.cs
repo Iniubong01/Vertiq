@@ -3,7 +3,7 @@ using UnityEngine;
 public class SoundManager : MonoBehaviour
 {
     private AudioSource audioSource;
-    [SerializeField] AudioClip deathSound;
+    [SerializeField] AudioClip deathSound, enemyDeathSound;
     [SerializeField] AudioClip buttonSound;
     public static SoundManager Instance;
 
@@ -32,6 +32,11 @@ public class SoundManager : MonoBehaviour
     public void PlayDeathClip()
     {
         audioSource.PlayOneShot(deathSound);
+    }
+
+    public void PlayEnemyDeathClip()
+    {
+        audioSource.PlayOneShot(enemyDeathSound);
     }
 
     public void PlayButtonSound()

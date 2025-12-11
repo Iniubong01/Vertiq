@@ -10,7 +10,7 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
 
     [SerializeField] private Player player;
-    [SerializeField] private ParticleSystem explosionEffect;
+    [SerializeField] private ParticleSystem explosionEffect, enemyExplosionEffect;
     [SerializeField] private GameObject gameOverUI, powerUpButtons;
     [SerializeField] private Text livesText;
 
@@ -30,6 +30,8 @@ public class GameManager : MonoBehaviour
     private float currentTime = 0f;
     private int bestScore = 0;
     private float bestTime = 99999f;  // Large default start
+    [HideInInspector] public bool playerDead;
+    [SerializeField] Button shootButton;
 
     private void Awake()
     {
@@ -75,6 +77,8 @@ public class GameManager : MonoBehaviour
 
         if (lives <= 0 && Input.GetKeyDown(KeyCode.Return))
             NewGame();
+
+            shootButton.interactable = (!playerDead);
     }
 
     private void NewGame()
@@ -88,6 +92,8 @@ public class GameManager : MonoBehaviour
 
         currentTime = 0f;
         timerText.text = "0:00";
+
+        playerDead = false;
 
         SetScore(0);
         SetLives(3);
@@ -129,12 +135,16 @@ public class GameManager : MonoBehaviour
     {
         player.transform.position = Vector3.zero;
         player.gameObject.SetActive(true);
+
+        playerDead = false;
     }
 
     public void OnAsteroidDestroyed(Asteroid asteroid)
     {
-        explosionEffect.transform.position = asteroid.transform.position;
-        explosionEffect.Play();
+        enemyExplosionEffect.transform.position = asteroid.transform.position;
+        enemyExplosionEffect.Play();
+
+        SoundManager.Instance.PlayEnemyDeathClip();
 
         if (asteroid.size < 0.7f)
         {
@@ -161,6 +171,8 @@ public class GameManager : MonoBehaviour
 
         SetLives(lives - 1);
 
+        playerDead = true;
+
         if (lives <= 0)
         {
             gameOverUI.SetActive(true);
@@ -175,29 +187,35 @@ public class GameManager : MonoBehaviour
 
     public void Restart()
     {
+        Time.timeScale = 1;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         Debug.Log("Game Restart!");
+        SoundManager.Instance.PlayButtonSound();
     }
 
     public void Pause()
     {
+        SoundManager.Instance.PlayButtonSound();
         Time.timeScale = 0;
     }
 
     public void Continue()
     {
         Time.timeScale = 1;
+        SoundManager.Instance.PlayButtonSound();
     }
 
     public void QuitGame()
     {
         Time.timeScale = 1;
+        SoundManager.Instance.PlayButtonSound();
         Application.Quit();
     }
 
     public void Home()
     {
         Time.timeScale = 1;
+        SoundManager.Instance.PlayButtonSound();
         SceneManager.LoadScene("Splash");
     }
 
