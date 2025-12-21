@@ -32,6 +32,9 @@ public class GameManager : MonoBehaviour
     private float bestTime = 99999f;  // Large default start
     [HideInInspector] public bool playerDead;
     [SerializeField] Button shootButton;
+    
+    // We store the reference privately now
+    private CanvasGroup gameOverCanvasGroup; 
 
     private void Awake()
     {
@@ -62,6 +65,21 @@ public class GameManager : MonoBehaviour
         bestScoreText.text = bestScore.ToString();
         BestTimeText.text = FormatTime(bestTime);
 
+        // --- AUTOMATICALLY GET CANVAS GROUP ---
+        if (gameOverUI != null)
+        {
+            gameOverCanvasGroup = gameOverUI.GetComponent<CanvasGroup>();
+            
+            // Safety: If it's missing, add it automatically so the game doesn't break
+            if (gameOverCanvasGroup == null)
+            {
+                gameOverCanvasGroup = gameOverUI.AddComponent<CanvasGroup>();
+            }
+            
+            // Ensure it starts invisible and non-interactive
+            gameOverCanvasGroup.alpha = 0f;
+        }
+
         NewGame();
     }
 
@@ -78,7 +96,7 @@ public class GameManager : MonoBehaviour
         if (lives <= 0 && Input.GetKeyDown(KeyCode.Return))
             NewGame();
 
-            shootButton.interactable = (!playerDead);
+        shootButton.interactable = (!playerDead);
     }
 
     private void NewGame()
@@ -89,6 +107,10 @@ public class GameManager : MonoBehaviour
             Destroy(asteroids[i].gameObject);
 
         gameOverUI.SetActive(false);
+        
+        // Reset Alpha for new game
+        if (gameOverCanvasGroup != null) 
+            gameOverCanvasGroup.alpha = 0f;
 
         currentTime = 0f;
         timerText.text = "0:00";
@@ -177,12 +199,35 @@ public class GameManager : MonoBehaviour
         {
             gameOverUI.SetActive(true);
             powerUpButtons.SetActive(false);
+            
+            // Trigger the Fade In
+            if (gameOverCanvasGroup != null)
+                StartCoroutine(FadeInGameOver());
+                
             Debug.Log("Game Over!");
         }
         else
         {
             Invoke(nameof(Respawn), player.respawnDelay);
         }
+    }
+
+    // Coroutine to smoothly fade in the UI
+    private IEnumerator FadeInGameOver()
+    {
+        float duration = 1.0f; // Time in seconds to fade in
+        float elapsedTime = 0f;
+
+        gameOverCanvasGroup.alpha = 0f; // Ensure it starts invisible
+
+        while (elapsedTime < duration)
+        {
+            elapsedTime += Time.deltaTime;
+            gameOverCanvasGroup.alpha = Mathf.Clamp01(elapsedTime / duration);
+            yield return null;
+        }
+
+        gameOverCanvasGroup.alpha = 1f; // Ensure it ends fully visible
     }
 
     public void Restart()

@@ -66,10 +66,14 @@ public class WalletConnector : MonoBehaviour
         {
             Debug.Log($"Wallet connected: {PlayerAccount.PublicKey}");
             UpdateUI(PlayerAccount.PublicKey);
-        }
-        else
-        {
-            Debug.LogError("Wallet connection failed.");
+
+            // ADD THIS BLOCK HERE:
+            // ---------------------------------------------------------
+            if (AnalyticsManager.Instance != null)
+            {
+                AnalyticsManager.Instance.SetUserWallet(PlayerAccount.PublicKey);
+            }
+            // ---------------------------------------------------------
         }
     }
 

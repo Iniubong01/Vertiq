@@ -4,7 +4,7 @@ public class AsteroidSpawner : MonoBehaviour
 {
     [Header("Asteroid Settings")]
     public Asteroid[] asteroidPrefab;
-    public float spawnDistance = 12f;
+    public float spawnBuffer = 2f; // How far outside the screen to spawn
     public int baseAmountPerSpawn = 1;
     public int maxAmountPerSpawn = 5;
 
@@ -12,18 +12,16 @@ public class AsteroidSpawner : MonoBehaviour
     public float trajectoryVariance = 15f;
 
     [Header("Difficulty Settings")]
-    public float startSpawnInterval = 1f;       // Slowest (beginning)
-    public float minimumSpawnInterval = 0.25f;  // Fastest allowed
-    public float difficultyRampTime = 90f;      // How long to reach max speed
-
-    [Tooltip("Extra multiplier that increases the amount of asteroids per wave over time.")]
-    public float amountRamp = 0.02f;            // 0 = disabled, 0.02 = grows slowly
+    public float startSpawnInterval = 1f;       
+    public float minimumSpawnInterval = 0.25f;  
+    public float difficultyRampTime = 90f;      
+    public float amountRamp = 0.02f;            
 
     [Header("Audio")]
     [SerializeField] private AudioClip spawnSound;
 
     private AudioSource audioSource;
-
+    private Camera mainCam;
     private float elapsedTime = 0f;
     private float spawnTimer = 0f;
     private float currentSpawnInterval = 1f;
@@ -31,29 +29,22 @@ public class AsteroidSpawner : MonoBehaviour
     private void Start()
     {
         audioSource = GetComponent<AudioSource>();
-
-        // Start interval
+        mainCam = Camera.main;
         currentSpawnInterval = startSpawnInterval;
     }
 
     private void Update()
     {
-        // Time alive = difficulty
         elapsedTime += Time.deltaTime;
 
-        // Difficulty lerp (0 → 1)
+        // Difficulty Math
         float t = Mathf.Clamp01(elapsedTime / difficultyRampTime);
-
-        // Interval shrinks as time increases
         currentSpawnInterval = Mathf.Lerp(startSpawnInterval, minimumSpawnInterval, t);
 
-        // Spawn timing
         spawnTimer += Time.deltaTime;
         if (spawnTimer >= currentSpawnInterval)
         {
             spawnTimer = 0f;
-
-            // Amount increases over time
             int amountThisWave = Mathf.Clamp(
                 baseAmountPerSpawn + Mathf.FloorToInt(elapsedTime * amountRamp),
                 baseAmountPerSpawn,
@@ -66,23 +57,85 @@ public class AsteroidSpawner : MonoBehaviour
 
     private void Spawn(int amount)
     {
-        if (spawnSound != null)
+        if (spawnSound != null && audioSource != null)
             audioSource.PlayOneShot(spawnSound);
 
         for (int i = 0; i < amount; i++)
         {
-            Vector3 spawnDirection = Random.insideUnitCircle.normalized;
-            Vector3 spawnPoint = transform.position + (spawnDirection * spawnDistance);
+            // 1. Get a spawn point outside the camera view
+            Vector3 spawnPoint = GetRandomPointOutsideCamera();
 
+            // 2. Calculate direction towards the CENTER (0,0)
+            Vector2 directionToCenter = (Vector3.zero - spawnPoint).normalized;
+
+            // 3. Add randomness to the angle
             float variance = Random.Range(-trajectoryVariance, trajectoryVariance);
             Quaternion rotation = Quaternion.AngleAxis(variance, Vector3.forward);
-
+            
+            // 4. Generate random size FIRST
             int index = Random.Range(0, asteroidPrefab.Length);
-            Asteroid asteroid = Instantiate(asteroidPrefab[index], spawnPoint, rotation);
-            asteroid.size = Random.Range(asteroid.minSize, asteroid.maxSize);
-
-            Vector2 trajectory = rotation * -spawnDirection;
-            asteroid.SetTrajectory(trajectory);
+            Asteroid prefab = asteroidPrefab[index];
+            float randomSize = Random.Range(prefab.minSize, prefab.maxSize);
+            
+            // 5. Create Asteroid with proper instantiation
+            Asteroid asteroid = Instantiate(prefab, spawnPoint, rotation);
+            
+            // 6. Initialize with size BEFORE Start() runs (this happens immediately after Instantiate)
+            asteroid.Initialize(randomSize);
+            
+            // 7. Set trajectory
+            asteroid.SetTrajectory(rotation * directionToCenter);
+            
+            Debug.Log($"Spawned asteroid: Size={randomSize}, Position={spawnPoint}");
         }
+    }
+
+    // --- CALCULATE CAMERA BOUNDS ---
+    private Vector3 GetRandomPointOutsideCamera()
+    {
+        float height = 2f * mainCam.orthographicSize;
+        float width = height * mainCam.aspect;
+        
+        // Calculate the edges (Center 0,0 assumed)
+        float top = mainCam.transform.position.y + (height / 2f);
+        float bottom = mainCam.transform.position.y - (height / 2f);
+        float right = mainCam.transform.position.x + (width / 2f);
+        float left = mainCam.transform.position.x - (width / 2f);
+
+        // Pick a random side: 0=Top, 1=Bottom, 2=Right, 3=Left
+        int side = Random.Range(0, 4);
+        Vector3 point = Vector3.zero;
+
+        switch (side)
+        {
+            case 0: // Top
+                point = new Vector3(Random.Range(left, right), top + spawnBuffer, 0);
+                break;
+            case 1: // Bottom
+                point = new Vector3(Random.Range(left, right), bottom - spawnBuffer, 0);
+                break;
+            case 2: // Right
+                point = new Vector3(right + spawnBuffer, Random.Range(bottom, top), 0);
+                break;
+            case 3: // Left
+                point = new Vector3(left - spawnBuffer, Random.Range(bottom, top), 0);
+                break;
+        }
+
+        return point;
+    }
+    
+    // Debug: Draw the spawn zone in Scene View
+    private void OnDrawGizmos()
+    {
+        if (Camera.main == null) return;
+        
+        Camera cam = Camera.main;
+        float height = 2f * cam.orthographicSize;
+        float width = height * cam.aspect;
+        
+        Gizmos.color = Color.green;
+        // Draw the spawn rectangle (View size + buffer)
+        Gizmos.DrawWireCube(cam.transform.position, new Vector3(width + (spawnBuffer * 2), height + (spawnBuffer * 2), 0));
     }
 }

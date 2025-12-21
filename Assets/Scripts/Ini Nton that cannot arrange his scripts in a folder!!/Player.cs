@@ -1,22 +1,37 @@
 ﻿using UnityEngine;
+using UnityEngine.InputSystem;
+using System.Collections;
 
 [RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(PlayerInput))]
 public class Player : MonoBehaviour
 {
     private Rigidbody2D rb;
+    private PlayerInput playerInput; 
+
+    private Vector2 moveInput; 
+    private Vector2 lookInput; 
+    private bool isBraking = false;
 
     [Header("Movement Settings")]
     [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private float rotationSmoothness = 10f;
+    [SerializeField] private float rotationSmoothness = 15f;
+    
+    [Header("Braking Settings")]
+    [SerializeField] private float normalDrag = 0.3f; 
+    [SerializeField] private float brakeDrag = 3.0f;  
 
     [Header("Shooting Settings")]
     [SerializeField] private Bullet bulletPrefab;
     [Range(1, 10)] [SerializeField] public int powerLevel = 1;
     [SerializeField] private float spreadAngle = 10f;
-    public float respawnDelay = 3f;
-    public float respawnInvulnerability = 3f;
+    [SerializeField] private float fireRate = 0.15f; 
+    
+    private Coroutine firingCoroutine; 
 
     [Header("Other Settings")]
+    public float respawnDelay = 3f;
+    public float respawnInvulnerability = 3f;
     public bool screenWrapping = true;
     private Bounds screenBounds;
     private AudioSource audioSource;
@@ -27,10 +42,12 @@ public class Player : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        playerInput = GetComponent<PlayerInput>();
+
         rb.gravityScale = 0f;
-        rb.linearDamping = 0.3f;
         rb.angularDamping = 0.1f;
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+        rb.linearDamping = normalDrag;
     }
 
     private void Start()
@@ -38,12 +55,10 @@ public class Player : MonoBehaviour
         GameObject[] boundaries = GameObject.FindGameObjectsWithTag("Boundary");
         audioSource = GetComponent<AudioSource>();
 
-        // Disable all boundaries if screen wrapping is enabled
         for (int i = 0; i < boundaries.Length; i++) {
-            boundaries[i].SetActive(!screenWrapping);
+            if(boundaries[i] != null) boundaries[i].SetActive(!screenWrapping);
         }
 
-        // Convert screen space bounds to world space bounds
         screenBounds = new Bounds();
         screenBounds.Encapsulate(Camera.main.ScreenToWorldPoint(Vector3.zero));
         screenBounds.Encapsulate(Camera.main.ScreenToWorldPoint(new Vector3(Screen.width, Screen.height, 0f)));
@@ -53,67 +68,93 @@ public class Player : MonoBehaviour
 
     private void Update()
     {
-        // Shooting
-        if (Input.GetKeyDown(KeyCode.Space) && canShoot)
-            Shoot();
+        HandleShooting();
     }
 
     private void FixedUpdate()
     {
-        // --- Movement input ---
-        float moveX = Input.GetAxis("Horizontal");
-        float moveY = Input.GetAxis("Vertical");
-        Vector2 moveInput = new Vector2(moveX, moveY);
+        if (isBraking)
+            rb.linearDamping = brakeDrag;
+        else
+            rb.linearDamping = normalDrag;
 
-        // --- Apply movement ---
         if (moveInput.sqrMagnitude > 0.01f)
-        {
-            // Apply smooth acceleration force
             rb.AddForce(moveInput.normalized * moveSpeed, ForceMode2D.Force);
 
-            // Rotate toward movement direction
-            float targetAngle = Mathf.Atan2(moveInput.y, moveInput.x) * Mathf.Rad2Deg - 90f;
+        if (lookInput.sqrMagnitude > 0.01f)
+        {
+            float targetAngle = Mathf.Atan2(lookInput.y, lookInput.x) * Mathf.Rad2Deg - 90f;
             float newAngle = Mathf.LerpAngle(rb.rotation, targetAngle, rotationSmoothness * Time.fixedDeltaTime);
             rb.MoveRotation(newAngle);
         }
 
-        // --- Screen wrapping ---
-        if (screenWrapping)
-            ScreenWrap();
+        if (screenWrapping) ScreenWrap();
     }
 
-    private void OnEnable()
-    {
-        // Turn off collisions for a few seconds after spawning to ensure the
-        // player has enough time to safely move away from asteroids
-        TurnOffCollisions();
-        Invoke(nameof(TurnOnCollisions), respawnInvulnerability);
-    }
+    // ==========================================================
+    //                  INPUT CALLBACKS
+    // ==========================================================
 
-    private void TurnOnCollisions()
-    {
-        gameObject.layer = LayerMask.NameToLayer("Player");
-    }
+    public void OnMove(InputValue value) => moveInput = value.Get<Vector2>();
 
-    private void TurnOffCollisions()
-    {
-        gameObject.layer = LayerMask.NameToLayer("Ignore Collisions");
-    }
+    public void OnLook(InputValue value) => lookInput = value.Get<Vector2>();
 
-    private void ScreenWrap()
+    public void OnBrake(InputValue value) => isBraking = value.isPressed;
+
+    public void OnActivatePowerup(InputValue value)
     {
-        // Move to the opposite side of the screen if the player exceeds the bounds
-        if (rb.position.x > screenBounds.max.x + 0.5f) {
-            rb.position = new Vector2(screenBounds.min.x - 0.5f, rb.position.y);
+        if (value.isPressed) 
+        {
+            PowerUpManager.Instance.TriggerSelectedPowerUp();
+            Debug.Log("PowerUp Activated!");
         }
-        else if (rb.position.x < screenBounds.min.x - 0.5f) {
-            rb.position = new Vector2(screenBounds.max.x + 0.5f, rb.position.y);
+    }
+
+    // NAVIGATION CALLBACKS - These are called automatically by Input System
+    public void OnNavigateLeft(InputValue value)
+    {
+        if (value.isPressed)
+        {
+            PowerUpManager.Instance.Navigate(-1);
+            Debug.Log("Navigate LEFT - Current Index: " + PowerUpManager.Instance.GetCurrentIndex());
         }
-        else if (rb.position.y > screenBounds.max.y + 0.5f) {
-            rb.position = new Vector2(rb.position.x, screenBounds.min.y - 0.5f);
+    }
+
+    public void OnNavigateRight(InputValue value)
+    {
+        if (value.isPressed)
+        {
+            PowerUpManager.Instance.Navigate(1);
+            Debug.Log("Navigate RIGHT - Current Index: " + PowerUpManager.Instance.GetCurrentIndex());
         }
-        else if (rb.position.y < screenBounds.min.y - 0.5f) {
-            rb.position = new Vector2(rb.position.x, screenBounds.max.y + 0.5f);
+    }
+
+    private void HandleShooting()
+    {
+        float triggerValue = playerInput.actions["Fire"].ReadValue<float>();
+
+        if (triggerValue > 0.5f && canShoot)
+        {
+            if (firingCoroutine == null) firingCoroutine = StartCoroutine(FireContinuously());
+        }
+        else
+        {
+            if (firingCoroutine != null)
+            {
+                StopCoroutine(firingCoroutine);
+                firingCoroutine = null;
+            }
+        }
+    }
+
+    // ==========================================================
+
+    private IEnumerator FireContinuously()
+    {
+        while (true)
+        {
+            Shoot(); 
+            yield return new WaitForSeconds(fireRate); 
         }
     }
 
@@ -130,7 +171,37 @@ public class Player : MonoBehaviour
             bullet.Shoot(rotation * Vector2.up);
         }
         
-        audioSource.PlayOneShot(shootClip);
+        if(audioSource && shootClip) audioSource.PlayOneShot(shootClip);
+    }
+
+    private void OnEnable()
+    {
+        TurnOffCollisions();
+        Invoke(nameof(TurnOnCollisions), respawnInvulnerability);
+    }
+
+    private void OnDisable()
+    {
+        if (firingCoroutine != null)
+        {
+            StopCoroutine(firingCoroutine);
+            firingCoroutine = null;
+        }
+    }
+
+    private void TurnOnCollisions() => gameObject.layer = LayerMask.NameToLayer("Player");
+    private void TurnOffCollisions() => gameObject.layer = LayerMask.NameToLayer("Ignore Collisions");
+
+    private void ScreenWrap()
+    {
+        if (rb.position.x > screenBounds.max.x + 0.5f) 
+            rb.position = new Vector2(screenBounds.min.x - 0.5f, rb.position.y);
+        else if (rb.position.x < screenBounds.min.x - 0.5f) 
+            rb.position = new Vector2(screenBounds.max.x + 0.5f, rb.position.y);
+        else if (rb.position.y > screenBounds.max.y + 0.5f) 
+            rb.position = new Vector2(rb.position.x, screenBounds.min.y - 0.5f);
+        else if (rb.position.y < screenBounds.min.y - 0.5f) 
+            rb.position = new Vector2(rb.position.x, screenBounds.max.y + 0.5f);
     }
 
     void OnCollisionEnter2D(Collision2D collision)
@@ -138,17 +209,9 @@ public class Player : MonoBehaviour
         if (collision.gameObject.tag == "Asteroid" && !PowerUpManager.Instance.shieldActive)
         {
             GameManager.Instance.OnPlayerDeath(this);
-
         }
     }
 
-    public void enableShooting()
-    {
-        canShoot = true;
-    }
-    
-    public void preventShooting()
-    {
-        canShoot = false;
-    }
+    public void enableShooting() => canShoot = true;
+    public void preventShooting() => canShoot = false;
 }

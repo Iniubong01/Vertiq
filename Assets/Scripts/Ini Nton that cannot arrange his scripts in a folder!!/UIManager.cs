@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using System.Collections;
 using DG.Tweening;
 using TMPro;
+using UnityEngine.EventSystems; 
 
 public class UIManager : MonoBehaviour
 {
@@ -30,6 +31,7 @@ public class UIManager : MonoBehaviour
     [Header("Buttons")]
     [SerializeField] Button[] powerUpPurchaseButtons;
     [SerializeField] Button[] coinPurchaseButtons;
+    [SerializeField] Button storeBackButton; 
 
     [Header("PowerUp Indicators")]
     [SerializeField] GameObject[] shieldIndicators;
@@ -41,7 +43,6 @@ public class UIManager : MonoBehaviour
     {
         StartCoroutine(CloseSplashThenLoadMain());
 
-        // --- Setup PowerUp Buttons ---
         if (powerUpPurchaseButtons.Length >= 4)
         {
             powerUpPurchaseButtons[0].onClick.AddListener(BuyShieldPowerup);
@@ -50,7 +51,6 @@ public class UIManager : MonoBehaviour
             powerUpPurchaseButtons[3].onClick.AddListener(BuyFreezeTime);
         }
 
-        // --- Setup Coin Purchase Buttons ---
         if (coinPurchaseButtons.Length >= 4)
         {
             coinPurchaseButtons[0].onClick.AddListener(BuyCoinsPack10);
@@ -59,36 +59,24 @@ public class UIManager : MonoBehaviour
             coinPurchaseButtons[3].onClick.AddListener(BuyCoinsPack200);
         }
         
-        // -------------------------------------------
-        // ONE-TIME COIN GIFT (1000 Coins)
-        // -------------------------------------------
         GiveFirstTimeGift();
-
-        checkInteractivity_ShieldButton();
-        checkInteractivity_MultipleBulletButton();
-        checkInteractivity_FullLivesButton();
-        checkInteractivity_FreezeTimeButton();
-
+        UpdateUI();
+        
+        // Initialize all indicators on start
         UpdateShieldVisuals();
+        UpdateMultipleBulletsVisuals();
         UpdateFreezeTimeVisuals();
         UpdateFullLivesVisuals();
-        UpdateMultipleBulletsVisuals();
-
-        UpdateUI();  
     }
 
-    // ------------------------------------------------
-    // ONE-TIME COIN GIFT LOGIC
-    // ------------------------------------------------
     private void GiveFirstTimeGift()
     {
         if (!PlayerPrefs.HasKey("FirstTimeCoinGift"))
         {
-            ShopData.Instance.AddCoins(750);   // Give reward once
+            ShopData.Instance.AddCoins(750);   
             PlayerPrefs.SetInt("FirstTimeCoinGift", 1);
             PlayerPrefs.Save();
             
-            // Grant 2  of each powerup
             ShopData.Instance.AddPowerup("shield");
             ShopData.Instance.AddPowerup("shield");
             ShopData.Instance.AddPowerup("bullets");
@@ -99,10 +87,6 @@ public class UIManager : MonoBehaviour
             ShopData.Instance.AddPowerup("fulllives");
 
             Debug.Log("First-time 750 coin and power ups granted!");
-        }
-        else
-        {
-            Debug.Log("Coin gift already given — skipping.");
         }
     }
 
@@ -117,60 +101,34 @@ public class UIManager : MonoBehaviour
     #region PURCHASE LOGIC (SOLANA)
     public void BuyCoinsPack10()
     {
-        Debug.Log("Button Clicked: BuyCoinsPack10");
         PlayClickSound();
-
         if(paymentProcessor != null)
         {
-            paymentProcessor.PurchaseWithSol(pricePack10, () =>
-            {
-                ShopData.Instance.AddCoins(10);
-                UpdateUI();
-                Debug.Log("Purchased 10 Coins via Solana!");
-            });
+            paymentProcessor.PurchaseWithSol(pricePack10, () => { ShopData.Instance.AddCoins(10); UpdateUI(); });
         }
-        else Debug.LogError("PaymentProcessor not assigned in UIManager!");
     }
-    
     public void BuyCoinsPack50()
     {
-        Debug.Log("Button Clicked: BuyCoinsPack50");
         PlayClickSound();
         if(paymentProcessor != null)
         {
-            paymentProcessor.PurchaseWithSol(pricePack50, () =>
-            {
-                ShopData.Instance.AddCoins(50);
-                UpdateUI();
-            });
+            paymentProcessor.PurchaseWithSol(pricePack50, () => { ShopData.Instance.AddCoins(50); UpdateUI(); });
         }
     }
-
     public void BuyCoinsPack100()
     {
-        Debug.Log("Button Clicked: BuyCoinsPack100");
         PlayClickSound();
         if(paymentProcessor != null)
         {
-            paymentProcessor.PurchaseWithSol(pricePack100, () =>
-            {
-                ShopData.Instance.AddCoins(100);
-                UpdateUI();
-            });
+            paymentProcessor.PurchaseWithSol(pricePack100, () => { ShopData.Instance.AddCoins(100); UpdateUI(); });
         }
     }
-
     public void BuyCoinsPack200()
     {
-        Debug.Log("Button Clicked: BuyCoinsPack200");
         PlayClickSound();
         if(paymentProcessor != null)
         {
-            paymentProcessor.PurchaseWithSol(pricePack200, () =>
-            {
-                ShopData.Instance.AddCoins(200);
-                UpdateUI();
-            });
+            paymentProcessor.PurchaseWithSol(pricePack200, () => { ShopData.Instance.AddCoins(200); UpdateUI(); });
         }
     }
     #endregion
@@ -242,92 +200,91 @@ public class UIManager : MonoBehaviour
     #endregion
 
     #region POWERUPS & VISUALS
-    public void checkInteractivity_ShieldButton()
-    {
-        powerUpPurchaseButtons[0].interactable = ShopData.Instance.coins >= 50;
-    }
-    
-    public void checkInteractivity_MultipleBulletButton()
-    {
-        powerUpPurchaseButtons[1].interactable = ShopData.Instance.coins >= 50;
-    }
-
-    public void checkInteractivity_FullLivesButton()
-    {
-        powerUpPurchaseButtons[2].interactable = ShopData.Instance.coins >= 50;
-    }
-
-    public void checkInteractivity_FreezeTimeButton()
-    {
-        powerUpPurchaseButtons[3].interactable = ShopData.Instance.coins >= 50;
-    }
+    public void checkInteractivity_ShieldButton() { powerUpPurchaseButtons[0].interactable = ShopData.Instance.coins >= 50 && ShopData.Instance.powerupShield < 5; }
+    public void checkInteractivity_MultipleBulletButton() { powerUpPurchaseButtons[1].interactable = ShopData.Instance.coins >= 75 && ShopData.Instance.powerupMultipleBullets < 5; }
+    public void checkInteractivity_FullLivesButton() { powerUpPurchaseButtons[2].interactable = ShopData.Instance.coins >= 115 && ShopData.Instance.powerupFullLives < 5; }
+    public void checkInteractivity_FreezeTimeButton() { powerUpPurchaseButtons[3].interactable = ShopData.Instance.coins >= 145 && ShopData.Instance.powerupFreezeTime < 5; }
 
     public void BuyShieldPowerup()
     {
-        BuyPowerup("shield", shieldIndicators, UpdateShieldVisuals); 
+        PlayClickSound();
+        
+        // Check if player has enough coins AND hasn't maxed out this powerup
+        if (ShopData.Instance.SpendCoins(50) && ShopData.Instance.powerupShield < 5)
+        {
+            ShopData.Instance.AddPowerup("shield");
+            UpdateShieldVisuals(); // This now correctly updates based on the NEW count
+            UpdateUI();
+            StartCoroutine(RefocusSelectionRoutine());
+        }
     }
+
     public void BuyMultipleBullets()
     {
-        BuyPowerupI("bullets", multipleBulletsIndicators, UpdateMultipleBulletsVisuals); 
+        PlayClickSound();
+        
+        if (ShopData.Instance.SpendCoins(75) && ShopData.Instance.powerupMultipleBullets < 5)
+        {
+            ShopData.Instance.AddPowerup("bullets");
+            UpdateMultipleBulletsVisuals();
+            UpdateUI();
+            StartCoroutine(RefocusSelectionRoutine());
+        }
     }
+
     public void BuyFreezeTime()
     {
-        BuyPowerupII("freezetime", freezeTimeIndicators, UpdateFreezeTimeVisuals); 
+        PlayClickSound();
+        
+        if (ShopData.Instance.SpendCoins(145) && ShopData.Instance.powerupFreezeTime < 5)
+        {
+            ShopData.Instance.AddPowerup("freezetime");
+            UpdateFreezeTimeVisuals();
+            UpdateUI();
+            StartCoroutine(RefocusSelectionRoutine());
+        }
     }
+
     public void BuyFullLives()
     {
-        BuyPowerupIII("fulllives", fullLivesIndicators, UpdateFullLivesVisuals); 
-    }
-
-    private void BuyPowerup(string id, GameObject[] indicators, System.Action updateVisuals)
-    {
         PlayClickSound();
-        if (ShopData.Instance.SpendCoins(50) && ShopData.Instance.powerupShield <= 4)
+        
+        if (ShopData.Instance.SpendCoins(115) && ShopData.Instance.powerupFullLives < 5)
         {
-            ShopData.Instance.AddPowerup(id);
-            if(indicators.Length > 0) indicators[0].SetActive(true);
-            updateVisuals?.Invoke();
+            ShopData.Instance.AddPowerup("fulllives");
+            UpdateFullLivesVisuals();
             UpdateUI();
-            checkInteractivity_ShieldButton();
+            StartCoroutine(RefocusSelectionRoutine());
         }
     }
 
-    private void BuyPowerupI(string id, GameObject[] indicators, System.Action updateVisuals)
+    private IEnumerator RefocusSelectionRoutine()
     {
-        PlayClickSound();
-        if (ShopData.Instance.SpendCoins(75) && ShopData.Instance.powerupMultipleBullets <= 4)
-        {
-            ShopData.Instance.AddPowerup(id);
-            if(indicators.Length > 0) indicators[0].SetActive(true);
-            updateVisuals?.Invoke();
-            UpdateUI();
-            checkInteractivity_MultipleBulletButton();
-        }
-    }
+        yield return null; 
 
-    private void BuyPowerupII(string id, GameObject[] indicators, System.Action updateVisuals)
-    {
-        PlayClickSound();
-        if (ShopData.Instance.SpendCoins(145) && ShopData.Instance.powerupFreezeTime <= 4)
-        {
-            ShopData.Instance.AddPowerup(id);
-            if(indicators.Length > 0) indicators[0].SetActive(true);
-            updateVisuals?.Invoke();
-            UpdateUI();
-            checkInteractivity_FreezeTimeButton();
-        }
-    }
+        GameObject selectedObj = EventSystem.current.currentSelectedGameObject;
+        Button selectedBtn = (selectedObj != null) ? selectedObj.GetComponent<Button>() : null;
 
-    private void BuyPowerupIII(string id, GameObject[] indicators, System.Action updateVisuals)
-    {
-        PlayClickSound();
-        if (ShopData.Instance.SpendCoins(115) && ShopData.Instance.powerupFullLives <= 4)
+        if (selectedBtn == null || !selectedBtn.interactable)
         {
-            ShopData.Instance.AddPowerup(id);
-            if(indicators.Length > 0) indicators[0].SetActive(true);
-            updateVisuals?.Invoke();
-            UpdateUI();
-            checkInteractivity_FullLivesButton();
+            bool foundNewButton = false;
+
+            foreach (Button btn in powerUpPurchaseButtons)
+            {
+                if (btn != null && btn.interactable && btn.gameObject.activeInHierarchy)
+                {
+                    EventSystem.current.SetSelectedGameObject(null);
+                    EventSystem.current.SetSelectedGameObject(btn.gameObject);
+                    foundNewButton = true;
+                    break;
+                }
+            }
+            
+            if (!foundNewButton && storeBackButton != null && storeBackButton.interactable)
+            {
+                EventSystem.current.SetSelectedGameObject(null);
+                EventSystem.current.SetSelectedGameObject(storeBackButton.gameObject);
+            }
         }
     }
 
@@ -339,7 +296,9 @@ public class UIManager : MonoBehaviour
     private void UpdateIndicators(int count, GameObject[] indicators)
     {
         for (int i = 0; i < indicators.Length; i++)
+        {
             indicators[i].SetActive(i < count);
+        }
     }
     #endregion
 
@@ -349,6 +308,11 @@ public class UIManager : MonoBehaviour
         {
             if (coinText != null) coinText.text = ShopData.Instance.coins.ToString();
             if (coinTextStore != null) coinTextStore.text = ShopData.Instance.coins.ToString();
+            
+            checkInteractivity_ShieldButton();
+            checkInteractivity_MultipleBulletButton();
+            checkInteractivity_FullLivesButton();
+            checkInteractivity_FreezeTimeButton();
         }
     }
 }

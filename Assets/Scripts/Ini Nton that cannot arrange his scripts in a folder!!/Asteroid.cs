@@ -3,10 +3,12 @@ using UnityEngine;
 
 [RequireComponent(typeof(SpriteRenderer))]
 [RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(Collider2D))]
 public class Asteroid : MonoBehaviour
 {
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
+    private Collider2D col;
 
     [SerializeField]
     private Sprite[] sprites;
@@ -17,14 +19,35 @@ public class Asteroid : MonoBehaviour
     public float movementSpeed = 50f;
     public float maxLifetime = 30f;
     private SpriteRenderer sprite;
+    
+    private bool isInitialized = false;
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        col = GetComponent<Collider2D>();
+        sprite = GetComponent<SpriteRenderer>();
     }
 
     private void Start()
     {
-        sprite = GetComponent<SpriteRenderer>();
+        // Only initialize if not already done (prevents double initialization)
+        if (!isInitialized)
+        {
+            Initialize();
+        }
+    }
+
+    // Public method to initialize the asteroid with a specific size BEFORE Start() runs
+    public void Initialize(float asteroidSize)
+    {
+        size = asteroidSize;
+        Initialize();
+    }
+
+    private void Initialize()
+    {
+        isInitialized = true;
 
         // Assign random properties to make each asteroid feel unique
         transform.eulerAngles = new Vector3(0f, 0f, Random.value * 360f);
@@ -33,6 +56,8 @@ public class Asteroid : MonoBehaviour
         // the physics is more realistic
         transform.localScale = Vector3.one * size;
         rb.mass = size;
+
+        Debug.Log($"Asteroid initialized: Size={size}, Scale={transform.localScale}, Mass={rb.mass}");
 
         // Destroy the asteroid after it reaches its max lifetime
         Destroy(gameObject, maxLifetime);
@@ -64,20 +89,22 @@ public class Asteroid : MonoBehaviour
             
             sprite.DOFade(0, 0.01f);
             Destroy(this.gameObject);
-            Debug.LogWarning("Died!");
+            Debug.LogWarning("Asteroid Destroyed!");
         }
     }
 
     private Asteroid CreateSplit()
     {
-        // Set the new asteroid poistion to be the same as the current asteroid
+        // Set the new asteroid position to be the same as the current asteroid
         // but with a slight offset so they do not spawn inside each other
         Vector2 position = transform.position;
         position += Random.insideUnitCircle * 0.5f;
 
         // Create the new asteroid at half the size of the current
         Asteroid half = Instantiate(this, position, transform.rotation);
-        half.size = size * 0.5f;
+        
+        // Initialize the split asteroid with the correct size BEFORE Start runs
+        half.Initialize(size * 0.5f);
 
         // Set a random trajectory
         half.SetTrajectory(Random.insideUnitCircle.normalized);
@@ -87,12 +114,22 @@ public class Asteroid : MonoBehaviour
 
     private void Update()
     {
-        if(PowerUpManager.Instance.IsFreezeTimeActive)
+        // Debug check for disabled components
+        if (!col.enabled || !this.enabled)
         {
-            rb.linearVelocity = Vector3.zero;
-            movementSpeed = 0;
+            Debug.LogError($"[ASTEROID] Components disabled! GameObject: {gameObject.name}, Collider: {col.enabled}, Script: {this.enabled}, Position: {transform.position}");
+        }
+
+        if(PowerUpManager.Instance != null && PowerUpManager.Instance.IsFreezeTimeActive)
+        {
+            rb.linearVelocity = Vector2.zero;
             rb.angularVelocity = 0f;
         }
     }
 
+    private void OnDisable()
+    {
+        Debug.LogWarning($"[ASTEROID] Script disabled on {gameObject.name}! Size: {size}, Position: {transform.position}");
+        Debug.LogWarning($"Stack trace: {System.Environment.StackTrace}");
+    }
 }
