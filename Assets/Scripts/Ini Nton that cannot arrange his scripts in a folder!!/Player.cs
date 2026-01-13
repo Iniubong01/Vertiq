@@ -14,12 +14,15 @@ public class Player : MonoBehaviour
     private bool isBraking = false;
 
     [Header("Movement Settings")]
-    [SerializeField] private float moveSpeed = 5f;
+    // 1. INCREASED SPEED: Needs to be higher to fight the higher drag
+    [SerializeField] private float moveSpeed = 15f; 
     [SerializeField] private float rotationSmoothness = 15f;
     
     [Header("Braking Settings")]
-    [SerializeField] private float normalDrag = 0.3f; 
-    [SerializeField] private float brakeDrag = 3.0f;  
+    // 2. INCREASED DRAG: This stops the "sliding on ice" feeling. 
+    // 2.0f is much tighter than 0.3f.
+    [SerializeField] private float normalDrag = 2.0f; 
+    [SerializeField] private float brakeDrag = 6.0f;  
 
     [Header("Shooting Settings")]
     [SerializeField] private Bullet bulletPrefab;
@@ -47,6 +50,8 @@ public class Player : MonoBehaviour
         rb.gravityScale = 0f;
         rb.angularDamping = 0.1f;
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+        
+        // Initialize drag immediately
         rb.linearDamping = normalDrag;
     }
 
@@ -73,14 +78,17 @@ public class Player : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Apply drag based on braking state
         if (isBraking)
             rb.linearDamping = brakeDrag;
         else
             rb.linearDamping = normalDrag;
 
+        // Move Force
         if (moveInput.sqrMagnitude > 0.01f)
             rb.AddForce(moveInput.normalized * moveSpeed, ForceMode2D.Force);
 
+        // Rotation
         if (lookInput.sqrMagnitude > 0.01f)
         {
             float targetAngle = Mathf.Atan2(lookInput.y, lookInput.x) * Mathf.Rad2Deg - 90f;
@@ -91,14 +99,10 @@ public class Player : MonoBehaviour
         if (screenWrapping) ScreenWrap();
     }
 
-    // ==========================================================
-    //                  INPUT CALLBACKS
-    // ==========================================================
+    // ... (Rest of your Input Callbacks and Collision code remains the same) ...
 
     public void OnMove(InputValue value) => moveInput = value.Get<Vector2>();
-
     public void OnLook(InputValue value) => lookInput = value.Get<Vector2>();
-
     public void OnBrake(InputValue value) => isBraking = value.isPressed;
 
     public void OnActivatePowerup(InputValue value)
@@ -106,31 +110,23 @@ public class Player : MonoBehaviour
         if (value.isPressed) 
         {
             PowerUpManager.Instance.TriggerSelectedPowerUp();
-            Debug.Log("PowerUp Activated!");
         }
     }
 
-    // NAVIGATION CALLBACKS - These are called automatically by Input System
     public void OnNavigateLeft(InputValue value)
     {
-        if (value.isPressed)
-        {
-            PowerUpManager.Instance.Navigate(-1);
-            Debug.Log("Navigate LEFT - Current Index: " + PowerUpManager.Instance.GetCurrentIndex());
-        }
+        if (value.isPressed) PowerUpManager.Instance.Navigate(-1);
     }
 
     public void OnNavigateRight(InputValue value)
     {
-        if (value.isPressed)
-        {
-            PowerUpManager.Instance.Navigate(1);
-            Debug.Log("Navigate RIGHT - Current Index: " + PowerUpManager.Instance.GetCurrentIndex());
-        }
+        if (value.isPressed) PowerUpManager.Instance.Navigate(1);
     }
 
     private void HandleShooting()
     {
+
+
         float triggerValue = playerInput.actions["Fire"].ReadValue<float>();
 
         if (triggerValue > 0.5f && canShoot)
@@ -147,8 +143,6 @@ public class Player : MonoBehaviour
         }
     }
 
-    // ==========================================================
-
     private IEnumerator FireContinuously()
     {
         while (true)
@@ -160,6 +154,7 @@ public class Player : MonoBehaviour
 
     public void Shoot()
     {
+        
         int bulletCount = Mathf.Clamp(powerLevel, 1, 10);
         float totalSpread = (bulletCount - 1) * spreadAngle;
 

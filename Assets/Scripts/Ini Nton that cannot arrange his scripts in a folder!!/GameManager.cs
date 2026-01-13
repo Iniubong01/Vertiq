@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
 using System.Collections;
+using UnityEngine.InputSystem;
 
 [DefaultExecutionOrder(-1)]
 public class GameManager : MonoBehaviour
@@ -93,8 +94,12 @@ public class GameManager : MonoBehaviour
             timeText.text = FormatTime(currentTime);
         }
 
-        if (lives <= 0 && Input.GetKeyDown(KeyCode.Return))
+        // --- FIX FOR NEW INPUT SYSTEM ---
+        // Checks if keyboard exists AND if Enter was pressed
+        if (lives <= 0 && (Keyboard.current != null && Keyboard.current.enterKey.wasPressedThisFrame))
+        {
             NewGame();
+        }
 
         shootButton.interactable = (!playerDead);
     }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.unity3d.player">
+    <!-- REQUIRED: Detect installed wallets (especially Jupiter) -->
+    <queries>
+        <package android:name="ag.jup.jupiter.android" />  <!-- Jupiter Mobile -->
+        <!-- Optional: Add others if you later remove includedWalletIds -->
+        <package android:name="app.phantom" />
+        <package android:name="com.solflare.mobile" />
+        <package android:name="xyz.backpack.android" />
+    </queries>
+
+    <application>
+        <activity android:name="com.unity3d.player.UnityPlayerActivity"
+                  android:launchMode="singleTask">
+            <!-- Optional but recommended: For return from wallet (helps stability) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="vortiq" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

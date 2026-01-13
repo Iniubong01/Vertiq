@@ -1,54 +1,73 @@
 using UnityEngine;
-using UnityEngine.EventSystems; // Required to detect "Selection"
+using UnityEngine.EventSystems;
 using System.Collections;
 
 public class ButtonScaler : MonoBehaviour, ISelectHandler, IDeselectHandler, IPointerEnterHandler, IPointerExitHandler
 {
     [Header("Settings")]
-    [SerializeField] private float scaleAmount = 1.2f; // How big to grow (1.2 = 20% bigger)
-    [SerializeField] private float animationSpeed = 0.1f; // How fast to pop
+    [SerializeField] private float scaleAmount = 1.2f;
+    [SerializeField] private float animationSpeed = 0.1f;
+    [SerializeField] private bool shrinkOnHoverExit = false; // New option to prevent "Sticky" selection
 
     private Vector3 originalScale;
     private Coroutine activeCoroutine;
+    private bool isInitialized = false;
 
-    private void Start()
+    private void Awake()
     {
-        // Remember the size we started at
+        // Capture scale in Awake to ensure we get the true "Editor" size
+        // before any animations (like OnEnable pop-ins) play.
         originalScale = transform.localScale;
+        isInitialized = true;
     }
 
-    // --- GAMEPAD LOGIC ---
-    // Called when the EventSystem highlights this button
+    // --- CRITICAL FIX: RESET ON DISABLE ---
+    private void OnDisable()
+    {
+        // If the menu closes while the button is big, reset it instantly.
+        // Otherwise, it will look "stuck" the next time the menu opens.
+        StopAllCoroutines();
+        if (isInitialized)
+        {
+            transform.localScale = originalScale;
+        }
+    }
+
+    // --- GAMEPAD / KEYBOARD LOGIC ---
     public void OnSelect(BaseEventData eventData)
     {
         StartScale(originalScale * scaleAmount);
     }
 
-    // Called when the EventSystem moves to another button
     public void OnDeselect(BaseEventData eventData)
     {
         StartScale(originalScale);
     }
 
-    // --- MOUSE LOGIC (Optional, for testing) ---
+    // --- MOUSE LOGIC ---
     public void OnPointerEnter(PointerEventData eventData)
     {
-        // Only scale if not already selected to avoid double-scaling
-        if (EventSystem.current.currentSelectedGameObject != gameObject)
+        // Only scale up if we aren't already selected (gamepad handles selection scaling)
+        if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != gameObject)
+        {
             StartScale(originalScale * scaleAmount);
+        }
     }
 
     public void OnPointerExit(PointerEventData eventData)
     {
-        // FIX: Check if EventSystem.current is null before accessing it.
-        // This happens if the UI is being disabled or the scene is unloading.
+        // Safety check
         if (EventSystem.current == null) return;
 
-        if (EventSystem.current.currentSelectedGameObject != gameObject)
+        // If 'shrinkOnHoverExit' is TRUE, we shrink even if selected. 
+        // If FALSE, we keep it big if it's currently selected (default UI behavior).
+        if (shrinkOnHoverExit || EventSystem.current.currentSelectedGameObject != gameObject)
+        {
             StartScale(originalScale);
+        }
     }
 
-    // --- SMOOTH ANIMATION ---
+    // --- ANIMATION ---
     private void StartScale(Vector3 targetScale)
     {
         if (activeCoroutine != null) StopCoroutine(activeCoroutine);
@@ -62,7 +81,7 @@ public class ButtonScaler : MonoBehaviour, ISelectHandler, IDeselectHandler, IPo
 
         while (time < animationSpeed)
         {
-            time += Time.unscaledDeltaTime; // Use unscaled so it works in Pause Menus!
+            time += Time.unscaledDeltaTime;
             transform.localScale = Vector3.Lerp(start, target, time / animationSpeed);
             yield return null;
         }

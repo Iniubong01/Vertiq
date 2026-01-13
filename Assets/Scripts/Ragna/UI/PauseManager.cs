@@ -1,22 +1,22 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.EventSystems; // Required for selecting buttons
+using UnityEngine.EventSystems;
 
 public class PauseManager : MonoBehaviour
 {
     [Header("UI References")]
     [SerializeField] private GameObject pauseMenuCanvas;
-    [SerializeField] private GameObject resumeButton; // The first button to highlight
+    [SerializeField] private GameObject resumeButton; 
+    [SerializeField] private GameObject powerUpsButton;
+    [SerializeField] private GameObject pauseButton; 
 
     [Header("Input Settings")]
-    // Drag your "Pause" action from the Inspector here
     [SerializeField] private InputActionReference pauseAction;
 
     private bool isPaused = false;
 
     private void OnEnable()
     {
-        // Enable the action and listen for the press
         if (pauseAction != null)
         {
             pauseAction.action.Enable();
@@ -26,7 +26,6 @@ public class PauseManager : MonoBehaviour
 
     private void OnDisable()
     {
-        // Clean up listeners
         if (pauseAction != null)
         {
             pauseAction.action.performed -= OnPausePerformed;
@@ -56,11 +55,16 @@ public class PauseManager : MonoBehaviour
     private void OpenMenu()
     {
         pauseMenuCanvas.SetActive(true);
-        Time.timeScale = 0f; // Freeze game time
+        powerUpsButton.SetActive(false); 
+        pauseButton.SetActive(false); 
+        Time.timeScale = 0f; 
 
-        // --- CRITICAL FOR CONTROLLERS ---
-        // You MUST clear the current selection and set a new one.
-        // If you don't do this, the D-pad/Joystick won't know what to move to.
+        // [ADDED] Tell PowerUpManager to disable interactivity
+        if (PowerUpManager.Instance != null)
+        {
+            PowerUpManager.Instance.SetPausedState(true);
+        }
+
         EventSystem.current.SetSelectedGameObject(null);
         EventSystem.current.SetSelectedGameObject(resumeButton);
     }
@@ -68,9 +72,21 @@ public class PauseManager : MonoBehaviour
     public void CloseMenu()
     {
         pauseMenuCanvas.SetActive(false);
-        Time.timeScale = 1f; // Resume game time
+        powerUpsButton.SetActive(true); 
+        pauseButton.SetActive(true); 
+        Time.timeScale = 1f; 
         
-        // Deselect everything so you don't accidentally click buttons while playing
+        // [ADDED] Tell PowerUpManager to re-enable interactivity (if items exist)
+        if (PowerUpManager.Instance != null)
+        {
+            PowerUpManager.Instance.SetPausedState(false);
+        }
+
         EventSystem.current.SetSelectedGameObject(null);
+    }
+
+    public void LoadHomeScene()
+    {
+        UIManager.LoadMainMenu();
     }
 }

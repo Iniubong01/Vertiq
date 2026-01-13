@@ -13,6 +13,9 @@ public class PowerUpManager : MonoBehaviour
     private bool multipleBulletsActive;
     private bool freezeTimeActive;
     private bool fullLives;
+    
+    // Track pause state locally
+    private bool isGamePaused = false; 
 
     [Header("Spawning Settings")]
     public GameObject[] PowerUps;
@@ -22,11 +25,11 @@ public class PowerUpManager : MonoBehaviour
     private Player player;
     public GameObject shield, bullets;
 
-    [Header("UI Buttons - Order them LEFT to RIGHT in Inspector")]
-    [SerializeField] Button SButton;      // Shield (leftmost)
-    [SerializeField] Button MBButton;     // Bullets (second from left)
-    [SerializeField] Button FTButton;     // Freeze (third from left)
-    [SerializeField] Button FLButton;     // Lives (rightmost)
+    [Header("UI Buttons")]
+    [SerializeField] Button SButton;      
+    [SerializeField] Button MBButton;     
+    [SerializeField] Button FTButton;     
+    [SerializeField] Button FLButton;     
     
     private List<Button> powerUpButtons; 
 
@@ -36,6 +39,15 @@ public class PowerUpManager : MonoBehaviour
 
     private int currentSelectionIndex = 0;
 
+    // [FIX] Track active Coroutines to prevent overlaps
+    private Coroutine shieldCoroutine;
+    private Coroutine mbCoroutine;
+    private Coroutine freezeCoroutine;
+    private Coroutine livesCoroutine;
+
+    // [FIX] Store original values safely at the class level
+    private int originalPowerLevel; 
+
     private void Awake()
     {
         Instance = this;
@@ -43,53 +55,51 @@ public class PowerUpManager : MonoBehaviour
 
     private void Start()
     {
-        player = GameObject.Find("Player").GetComponent<Player>();
+        // Safety check
+        GameObject pObj = GameObject.Find("Player");
+        if (pObj != null) player = pObj.GetComponent<Player>();
+        else Debug.LogError("[PowerUpManager] Player object not found!");
 
         SButton.onClick.AddListener(ShieldBL);
         FTButton.onClick.AddListener(FreezeTimeBL);
         MBButton.onClick.AddListener(MultipleBulletsBL);
         FLButton.onClick.AddListener(FullLivesBL);
 
-        // CORRECTED ORDER: Shield -> Bullets -> Freeze -> Lives (Left to Right)
         powerUpButtons = new List<Button> { SButton, MBButton, FTButton, FLButton };
 
         UpdateTexts();
         UpdateSelectionVisuals();
-        
-        Debug.Log("PowerUp Order (Left to Right): Shield, Bullets, Freeze, Lives");
+    }
+
+    public void SetPausedState(bool paused)
+    {
+        isGamePaused = paused;
+    }
+
+    private void Update()
+    {
+        SButton.interactable = !isGamePaused && ShopData.Instance.powerupShield > 0;
+        FTButton.interactable = !isGamePaused && ShopData.Instance.powerupFreezeTime > 0;
+        MBButton.interactable = !isGamePaused && ShopData.Instance.powerupMultipleBullets > 0;
+        FLButton.interactable = !isGamePaused && ShopData.Instance.powerupFullLives > 0;
     }
 
     public void Navigate(int direction)
     {
         currentSelectionIndex += direction;
-
-        if (currentSelectionIndex >= powerUpButtons.Count) 
-            currentSelectionIndex = 0;
-        else if (currentSelectionIndex < 0) 
-            currentSelectionIndex = powerUpButtons.Count - 1;
-
+        if (currentSelectionIndex >= powerUpButtons.Count) currentSelectionIndex = 0;
+        else if (currentSelectionIndex < 0) currentSelectionIndex = powerUpButtons.Count - 1;
         UpdateSelectionVisuals();
-        
-        Debug.Log($"Selected: {powerUpButtons[currentSelectionIndex].name} (Index: {currentSelectionIndex})");
     }
 
-    public int GetCurrentIndex()
-    {
-        return currentSelectionIndex;
-    }
+    public int GetCurrentIndex() => currentSelectionIndex;
 
     public void TriggerSelectedPowerUp()
     {
-        Button currentButton = powerUpButtons[currentSelectionIndex];
-
-        if (currentButton.interactable)
+        if (isGamePaused) return;
+        if (powerUpButtons[currentSelectionIndex].interactable)
         {
-            currentButton.onClick.Invoke();
-            Debug.Log($"Activated: {currentButton.name}");
-        }
-        else
-        {
-            Debug.Log($"PowerUp Empty: {currentButton.name}");
+            powerUpButtons[currentSelectionIndex].onClick.Invoke();
         }
     }
 
@@ -97,82 +107,126 @@ public class PowerUpManager : MonoBehaviour
     {
         for (int i = 0; i < powerUpButtons.Count; i++)
         {
-            if (i == currentSelectionIndex)
-            {
-                powerUpButtons[i].transform.localScale = Vector3.one * 1.3f;
-            }
-            else
-            {
-                powerUpButtons[i].transform.localScale = Vector3.one;
-            }
+            if (i == currentSelectionIndex) powerUpButtons[i].transform.localScale = Vector3.one * 1.3f;
+            else powerUpButtons[i].transform.localScale = Vector3.one;
         }
     }
 
-    public void ActivatePowerUp(PowerUpType type, float duration)
-    {
-        switch (type)
-        {
-            case PowerUpType.Shield:
-                StartCoroutine(HandleShield(duration));
-                break;
-            case PowerUpType.MultipleBullets:
-                StartCoroutine(HandleMultipleBullets(duration));
-                break;
-            case PowerUpType.FreezeTime:
-                StartCoroutine(HandleTimeFreeze(duration));
-                break;
-            case PowerUpType.FullLives:
-                StartCoroutine(HandleLiveAddition(duration));
-                break;
-        }
-    }
+    // --- REFACTORED POWERUP HANDLERS (The Fix) ---
 
-    void UpdateTexts()
+    // 1. MULTIPLE BULLETS
+    public void MultipleBulletsBL()
     {
-        S_AmountText.text = ShopData.Instance.powerupShield.ToString();
-        FT_AmountText.text = ShopData.Instance.powerupFreezeTime.ToString();
+        if(ShopData.Instance.powerupMultipleBullets <= 0) return;
+
+        ShopData.Instance.UsePowerup("bullets");
         MB_AmountText.text = ShopData.Instance.powerupMultipleBullets.ToString();
-        FL_AmountText.text = ShopData.Instance.powerupFullLives.ToString();
+
+        // If active, stop the timer so we can restart it (Extending duration)
+        if (mbCoroutine != null) StopCoroutine(mbCoroutine);
+        
+        // Only save state if this is the FIRST click (not an extension)
+        if (!multipleBulletsActive)
+        {
+            if(player != null) originalPowerLevel = player.powerLevel;
+            multipleBulletsActive = true;
+            if(player != null) player.powerLevel = 4;
+            bullets.SetActive(true);
+        }
+
+        // Restart timer
+        mbCoroutine = StartCoroutine(ResetMultipleBullets(powerUpDuration));
     }
 
-    private IEnumerator HandleShield(float duration)
+    private IEnumerator ResetMultipleBullets(float duration)
     {
-        shieldActive = true;
-        shield.SetActive(true);
+        yield return new WaitForSeconds(duration);
+        
+        // Restore
+        if(player != null) player.powerLevel = originalPowerLevel;
+        bullets.SetActive(false);
+        multipleBulletsActive = false;
+        mbCoroutine = null;
+    }
+
+    // 2. SHIELD
+    public void ShieldBL()
+    {
+        if(ShopData.Instance.powerupShield <= 0) return;
+
+        ShopData.Instance.UsePowerup("shield");
+        S_AmountText.text = ShopData.Instance.powerupShield.ToString();
+
+        if (shieldCoroutine != null) StopCoroutine(shieldCoroutine);
+
+        if (!shieldActive)
+        {
+            shieldActive = true;
+            shield.SetActive(true);
+        }
+
+        shieldCoroutine = StartCoroutine(ResetShield(powerUpDuration));
+    }
+
+    private IEnumerator ResetShield(float duration)
+    {
         yield return new WaitForSeconds(duration);
         shieldActive = false;
         shield.SetActive(false);
+        shieldCoroutine = null;
     }
 
-    private IEnumerator HandleMultipleBullets(float duration)
+    // 3. FREEZE TIME
+    public void FreezeTimeBL()
     {
-        int currentPowerLevel = player.powerLevel;
-        player.powerLevel = 4;
-        bullets.SetActive(true);
-        yield return new WaitForSeconds(duration);
-        bullets.SetActive(false);
-        player.powerLevel = currentPowerLevel;
-    }
+        if(ShopData.Instance.powerupFreezeTime <= 0) return;
 
-    private IEnumerator HandleTimeFreeze(float duration)
-    {
+        ShopData.Instance.UsePowerup("freezetime");
+        FT_AmountText.text = ShopData.Instance.powerupFreezeTime.ToString();
+
+        if (freezeCoroutine != null) StopCoroutine(freezeCoroutine);
+        
         freezeTimeActive = true;
+        freezeCoroutine = StartCoroutine(ResetFreezeTime(powerUpDuration));
+    }
+
+    private IEnumerator ResetFreezeTime(float duration)
+    {
         yield return new WaitForSeconds(duration);
         freezeTimeActive = false;
+        freezeCoroutine = null;
     }
 
-    private IEnumerator HandleLiveAddition(float duration)
+    // 4. FULL LIVES (Instant, no coroutine needed usually, but keeping logic consistent)
+    public void FullLivesBL()
+    {
+        if(ShopData.Instance.powerupFullLives <= 0) return;
+        
+        ShopData.Instance.UsePowerup("fulllives");
+        FL_AmountText.text = ShopData.Instance.powerupFullLives.ToString();
+
+        // Lives are instant, just apply them
+        GameManager.Instance.SetLives(3);
+        
+        // Optional visual indicator duration
+        if (livesCoroutine != null) StopCoroutine(livesCoroutine);
+        livesCoroutine = StartCoroutine(ResetFullLivesIndicator(powerUpDuration));
+    }
+
+    private IEnumerator ResetFullLivesIndicator(float duration)
     {
         fullLives = true;
-        GameManager.Instance.SetLives(3);
         yield return new WaitForSeconds(duration);
         fullLives = false;
+        livesCoroutine = null;
     }
 
+    // Getters
     public bool IsMultipleBulletsActive => multipleBulletsActive;
     public bool IsFreezeTimeActive => freezeTimeActive;
     public bool IsFullLives => fullLives;
 
+    // --- Spawning Logic ---
     public void SpawnPowerUps()
     {
         float spawnPointX = Random.Range(-9, 9);
@@ -185,47 +239,47 @@ public class PowerUpManager : MonoBehaviour
         Instantiate(PowerUps[index], spawnPoint, rotation);
     }
 
-    private void Update()
+    // --- External Activator (For pickups on map) ---
+    public void ActivatePowerUp(PowerUpType type, float duration)
     {
-        SButton.interactable = ShopData.Instance.powerupShield > 0;
-        FTButton.interactable = ShopData.Instance.powerupFreezeTime > 0;
-        MBButton.interactable = ShopData.Instance.powerupMultipleBullets > 0;
-        FLButton.interactable = ShopData.Instance.powerupFullLives > 0;
+        // Route external pickups through the same safe logic
+        switch (type)
+        {
+            case PowerUpType.Shield:
+                // We simulate the BL logic without spending coins
+                if (shieldCoroutine != null) StopCoroutine(shieldCoroutine);
+                if (!shieldActive) { shieldActive = true; shield.SetActive(true); }
+                shieldCoroutine = StartCoroutine(ResetShield(duration));
+                break;
+
+            case PowerUpType.MultipleBullets:
+                if (mbCoroutine != null) StopCoroutine(mbCoroutine);
+                if (!multipleBulletsActive) {
+                    if(player != null) originalPowerLevel = player.powerLevel;
+                    multipleBulletsActive = true;
+                    if(player != null) player.powerLevel = 4;
+                    bullets.SetActive(true);
+                }
+                mbCoroutine = StartCoroutine(ResetMultipleBullets(duration));
+                break;
+
+            case PowerUpType.FreezeTime:
+                if (freezeCoroutine != null) StopCoroutine(freezeCoroutine);
+                freezeTimeActive = true;
+                freezeCoroutine = StartCoroutine(ResetFreezeTime(duration));
+                break;
+
+            case PowerUpType.FullLives:
+                GameManager.Instance.SetLives(3);
+                break;
+        }
     }
 
-    public void FullLivesBL()
+    void UpdateTexts()
     {
-        if(ShopData.Instance.powerupFullLives <= 0) return;
-        
-        ActivatePowerUp(PowerUpType.FullLives, powerUpDuration);
-        ShopData.Instance.UsePowerup("fulllives");
-        FL_AmountText.text = ShopData.Instance.powerupFullLives.ToString();
-    }
-
-    public void FreezeTimeBL()
-    {
-        if(ShopData.Instance.powerupFreezeTime <= 0) return;
-
-        ShopData.Instance.UsePowerup("freezetime");
-        ActivatePowerUp(PowerUpType.FreezeTime, powerUpDuration);
-        FT_AmountText.text = ShopData.Instance.powerupFreezeTime.ToString();
-    }
-
-    public void MultipleBulletsBL()
-    {
-        if(ShopData.Instance.powerupMultipleBullets <= 0) return;
-
-        ShopData.Instance.UsePowerup("bullets");
-        StartCoroutine(HandleMultipleBullets(powerUpDuration));
-        MB_AmountText.text = ShopData.Instance.powerupMultipleBullets.ToString();
-    }
-
-    public void ShieldBL()
-    {
-        if(ShopData.Instance.powerupShield <= 0) return;
-
-        ShopData.Instance.UsePowerup("shield");
-        StartCoroutine(HandleShield(powerUpDuration));
         S_AmountText.text = ShopData.Instance.powerupShield.ToString();
+        FT_AmountText.text = ShopData.Instance.powerupFreezeTime.ToString();
+        MB_AmountText.text = ShopData.Instance.powerupMultipleBullets.ToString();
+        FL_AmountText.text = ShopData.Instance.powerupFullLives.ToString();
     }
 }

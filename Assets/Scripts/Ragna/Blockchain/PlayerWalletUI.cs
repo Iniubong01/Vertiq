@@ -1,10 +1,8 @@
 using UnityEngine;
 using Solana.Unity.SDK;
 using Solana.Unity.Rpc.Models;
-using Solana.Unity.Programs;
 using System;
 using TMPro;
-using Solana.Unity.Wallet;
 
 public class PlayerWalletUI : MonoBehaviour
 {
@@ -12,113 +10,107 @@ public class PlayerWalletUI : MonoBehaviour
     public TextMeshProUGUI solBalanceText;
     public TextMeshProUGUI solBalanceText2;
     public TextMeshProUGUI tokenBalanceText;
+    public TextMeshProUGUI tokenBalanceText2;
 
     [Header("Settings")]
     public string tokenMintAddress;
     public bool autoRefresh = true;
-    public float refreshInterval = 5f;
+    public float refreshInterval = 15f;
+
+    // MEMORY: Stores the last valid balance found
+    private double _lastValidTokenBalance = -1;
 
     private void Start()
     {
+        if (!string.IsNullOrEmpty(tokenMintAddress))
+            tokenMintAddress = tokenMintAddress.Trim();
+
+        // Initialize UI with empty/loading state
+        UpdateTokenUI("--"); 
+
         if (autoRefresh)
         {
-            // Start after 1 second to allow wallet to initialize
-            InvokeRepeating(nameof(RefreshBalances), 1f, refreshInterval); 
+            InvokeRepeating(nameof(RefreshBalances), 1f, refreshInterval);
         }
-    }
-
-    private Account GetActiveAccount()
-    {
-        // 1. Check the standard SDK account (Production/Mobile)
-        if (Web3.Account != null) return Web3.Account;
-
-        // 2. Fallback to our custom "Sticky" Dev Wallet (Editor)
-        if (WalletConnector.PlayerAccount != null) return WalletConnector.PlayerAccount;
-
-        return null;
     }
 
     public void RefreshBalances()
     {
-        if (GetActiveAccount() == null) return;
-
+        if (WalletConnector.UserPublicKey == null) return;
         ShowSolBalance();
-
-        if (!string.IsNullOrEmpty(tokenMintAddress))
-        {
-            ShowTokenBalance(tokenMintAddress);
-        }
+        if (!string.IsNullOrEmpty(tokenMintAddress)) ShowTokenBalance(tokenMintAddress);
     }
 
     public async void ShowSolBalance()
     {
-        Account activeAccount = GetActiveAccount();
-        if (activeAccount == null) return;
-
-        // REMOVED: This line caused the flicker
-        // if (solBalanceText != null) solBalanceText.text = "Loading...";
+        if (WalletConnector.UserPublicKey == null || Web3.Rpc == null) return;
 
         try
         {
-            var balanceResult = await Web3.Rpc.GetBalanceAsync(activeAccount.PublicKey);
-
+            var balanceResult = await Web3.Rpc.GetBalanceAsync(WalletConnector.UserPublicKey);
             if (balanceResult.WasSuccessful)
             {
                 double solBalance = (double)balanceResult.Result.Value / 1_000_000_000;
                 
-                // Only update the text when we actually have the new number
-                if (solBalanceText != null)
-                    solBalanceText.text = $"{solBalance:F4} SOL";
-
-                if (solBalanceText2 != null)
-                    solBalanceText2.text = $"{solBalance:F4} SOL";
+                if (solBalanceText != null) solBalanceText.text = $"{solBalance:F4} SOL";
+                if (solBalanceText2 != null) solBalanceText2.text = $"{solBalance:F4} SOL";
             }
         }
-        catch (Exception e)
-        {
-            // Optional: You might want to remove this too if you want total silence on errors
-            // if (solBalanceText != null) solBalanceText.text = "Error"; 
-            Debug.LogError("Error getting SOL balance: " + e.Message);
-        }
+        catch (Exception e) { Debug.LogError($"[WalletUI] SOL Error: {e.Message}"); }
     }
 
     public async void ShowTokenBalance(string mintAddress)
     {
-        Account activeAccount = GetActiveAccount();
-        if (activeAccount == null) return;
-
-        // REMOVED: This line caused the flicker
-        // if (tokenBalanceText != null) tokenBalanceText.text = "Loading...";
+        if (WalletConnector.UserPublicKey == null) return;
 
         try
         {
             var tokenAccounts = await Web3.Rpc.GetTokenAccountsByOwnerAsync(
-                activeAccount.PublicKey,
+                WalletConnector.UserPublicKey,
                 mintAddress,
-                TokenProgram.ProgramIdKey
+                null
             );
 
+            // CASE 1: SUCCESS - Found Tokens
             if (tokenAccounts.WasSuccessful && tokenAccounts.Result.Value.Count > 0)
             {
                 var tokenAccount = tokenAccounts.Result.Value[0];
-                var accountInfo = tokenAccount.Account.Data.Parsed.Info;
-                string balance = accountInfo.TokenAmount.UiAmountString;
+                double balance = double.Parse(tokenAccount.Account.Data.Parsed.Info.TokenAmount.UiAmountString);
 
-                if (tokenBalanceText != null) 
-                    tokenBalanceText.text = $"{balance} TOKENS";
+                Debug.Log($"[WalletUI] ✅ FOUND {balance} $PLAY");
+                
+                // SAVE TO MEMORY
+                _lastValidTokenBalance = balance;
+                UpdateTokenUI($"{balance:F0}");
             }
-            else
+            // CASE 2: SUCCESS - But RPC says 0 (Possible Glitch)
+            else if (tokenAccounts.WasSuccessful && tokenAccounts.Result.Value.Count == 0)
             {
-                if (tokenBalanceText != null) 
-                    tokenBalanceText.text = "0 TOKENS";
+                // CRITICAL FIX:
+                // If we previously saw money (e.g. 50), and now RPC says 0, IGNORE IT.
+                // It is likely an RPC timeout returning an empty list.
+                if (_lastValidTokenBalance > 0)
+                {
+                    Debug.LogWarning($"[WalletUI] ⚠️ RPC returned 0, but memory says {_lastValidTokenBalance}. Ignoring glitch.");
+                    // Keep showing the old balance. Do NOT update UI to 0.
+                }
+                else
+                {
+                    // Truly 0 (New user)
+                    UpdateTokenUI("0");
+                }
             }
         }
         catch (Exception e)
         {
-             // Optional: Remove if you want to keep old text on error
-            // if (tokenBalanceText != null) tokenBalanceText.text = "Error";
-            Debug.LogError("Error getting token balance: " + e.Message);
+            Debug.LogError($"[WalletUI] Token Error: {e.Message}");
         }
+    }
+
+    private void UpdateTokenUI(string balanceString)
+    {
+        if (tokenBalanceText != null) tokenBalanceText.text = $"{balanceString} $PLAY";
+        if (tokenBalanceText2 != null) tokenBalanceText2.text = $"{balanceString} $PLAY";
     }
 
     private void OnDestroy()

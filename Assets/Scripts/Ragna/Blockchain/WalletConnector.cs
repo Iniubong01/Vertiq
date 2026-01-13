@@ -1,116 +1,347 @@
 using UnityEngine;
+using Reown.AppKit.Unity;
+using System.Threading.Tasks;
+using System.Collections;
+using TMPro;
 using Solana.Unity.SDK;
 using Solana.Unity.Wallet;
 using Solana.Unity.Wallet.Bip39;
-using TMPro;
+using System;
 
 public class WalletConnector : MonoBehaviour
 {
     public static Account PlayerAccount;
+    public static PublicKey UserPublicKey;
 
     [Header("UI References")]
-    public GameObject loginPanel;
-    public GameObject connectedPanel;
+    public GameObject loginPanel, connectedPanel, loginPanel2, connectedPanel2;
+    public TMP_Text addressText, addressText2;
+    public NotificationPopup notificationPopup;
 
-    public GameObject loginPanel2;
-    public GameObject connectedPanel2;
-    public TMP_Text addressText;
-    public TMP_Text addressText2;
+    private string reownProjectId = "c7c0756cbca65514565202ed30f68613";
+    private const string JUPITER_ID = "0ef262ca2a56b88d179c93a21383fee4e135bd7bc6680e5c2356ff8e38301037";
+    private const string PREFS_KEY = "DevWalletMnemonic";
 
-    private const string PREFS_KEY = "DevWalletMnemonic"; // Key to save our secret phrase
-
-    public async void ConnectWallet()
+    private async void Start()
     {
-        if (Web3.Instance == null) return;
+        // Debug Log to confirm which RPC is actually being used
+        Debug.Log($"[Wallet] Start(). Web3 RPC Configured to: {Web3.Instance.customRpc}");
+        UpdateDisconnectedUI();
 
-        // --- EDITOR LOGIC (The "Sticky" Fix) ---
 #if UNITY_EDITOR
-        // 1. Try to Login normally first
-        var account = await Web3.Instance.LoginInGameWallet("devPassword");
-
-        // 2. If normal login failed, use our "Sticky" Backup
-        if (account == null)
+        Debug.Log("[Wallet] EDITOR: Using local wallet.");
+        LoginOrCreateEditorWallet(suppressFeedback: true); 
+#elif UNITY_WEBGL
+        Debug.Log("[Wallet] WEBGL: Ready.");
+#else
+        Debug.Log("[Wallet] MOBILE/ANDROID: Initializing AppKit...");
+        if (!PlayerPrefs.HasKey("SessionReset_v12")) {
+            PlayerPrefs.DeleteAll();
+            PlayerPrefs.SetInt("SessionReset_v12", 1);
+            PlayerPrefs.Save();
+        }
+        
+        // 🎯 FIX: Subscribe to events BEFORE initialization
+        // This ensures events are captured even if initialization is delayed
+        if (!AppKit.IsInitialized)
         {
-            // Check if we have a saved Mnemonic in PlayerPrefs
-            string savedMnemonic = PlayerPrefs.GetString(PREFS_KEY, "");
-
-            if (!string.IsNullOrEmpty(savedMnemonic))
+            try
             {
-                Debug.Log("Restoring 'Sticky' Dev Wallet from PlayerPrefs...");
-                // Restore the SAME wallet as last time
-                Wallet keypair = new Wallet(new Mnemonic(savedMnemonic));
-                account = keypair.Account;
+                await InitializeAppKit();
+                Debug.Log("[Wallet] AppKit initialization completed in Start()");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Wallet] AppKit initialization failed in Start(): {ex.Message}");
+                // Don't throw - we'll retry on ConnectWallet()
+            }
+        }
+        
+        // Always subscribe to events (safe to call multiple times)
+        SubscribeToAppKitEvents();
+        
+        await TryResumeSessionOnStart();
+#endif
+    }
+    
+    // 🎯 NEW: Separate method to subscribe to events
+    private void SubscribeToAppKitEvents()
+    {
+        try
+        {
+            // Unsubscribe first to prevent duplicate subscriptions
+            AppKit.AccountConnected -= OnAppKitAccountConnected;
+            AppKit.AccountDisconnected -= OnAppKitAccountDisconnected;
+            
+            // Subscribe
+            AppKit.AccountConnected += OnAppKitAccountConnected;
+            AppKit.AccountDisconnected += OnAppKitAccountDisconnected;
+            
+            Debug.Log("[Wallet] AppKit events subscribed successfully");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[Wallet] Failed to subscribe to AppKit events: {ex.Message}");
+        }
+    }
+
+    private async Task TryResumeSessionOnStart()
+    {
+        await Task.Delay(1000);
+        try {
+            bool resumed = await AppKit.ConnectorController.TryResumeSessionAsync();
+            if (resumed && AppKit.Account != null) 
+            {
+                Debug.Log($"[Wallet] Session resumed: {AppKit.Account.Address}");
+                HandleAccountConnectedImmediate(AppKit.Account.Address, true);
             }
             else
             {
-                Debug.Log("No Sticky Wallet found. Creating a NEW permanent dev wallet...");
-                // Generate NEW Mnemonic
-                var newMnemonic = new Mnemonic(WordList.English, WordCount.Twelve);
-                
-                // SAVE IT so next time we load the SAME one
-                PlayerPrefs.SetString(PREFS_KEY, newMnemonic.ToString());
-                PlayerPrefs.Save();
-
-                Wallet keypair = new Wallet(newMnemonic);
-                account = keypair.Account;
+                Debug.Log("[Wallet] No previous session to resume.");
             }
+        } 
+        catch (Exception ex) 
+        { 
+            Debug.LogWarning($"[Wallet] Resume session failed: {ex.Message}"); 
         }
-        PlayerAccount = account;
-#else
-        // --- MOBILE/WEB LOGIC ---
-        PlayerAccount = await Web3.Instance.LoginWalletAdapter();
-#endif
+    }
 
-        // --- SUCCESS LOGIC ---
-        if (PlayerAccount != null)
+    private void OnAppKitAccountConnected(object sender, Reown.AppKit.Unity.Connector.AccountConnectedEventArgs e)
+    {
+        Debug.Log($"[Wallet] 🎉 AppKit AccountConnected event TRIGGERED!");
+        Debug.Log($"[Wallet] Sender: {sender?.GetType().Name ?? "null"}");
+        Debug.Log($"[Wallet] EventArgs: {e?.GetType().Name ?? "null"}");
+        //Debug.Log($"[Wallet] Account Address: {e?.Account?.Address ?? "NULL"}");
+        
+        if (e?.Account != null) 
         {
-            Debug.Log($"Wallet connected: {PlayerAccount.PublicKey}");
-            UpdateUI(PlayerAccount.PublicKey);
+            // Use immediate method instead of coroutine for more reliable UI updates
+            HandleAccountConnectedImmediate(e.Account.Address, false);
+        }
+        else
+        {
+            Debug.LogError("[Wallet] AccountConnected event fired but Account is NULL!");
+        }
+    }
 
-            // ADD THIS BLOCK HERE:
-            // ---------------------------------------------------------
-            if (AnalyticsManager.Instance != null)
+    private void OnAppKitAccountDisconnected(object sender, EventArgs e)
+    {
+        Debug.Log("[Wallet] AppKit AccountDisconnected event fired");
+        PlayerAccount = null;
+        UserPublicKey = null;
+        UpdateDisconnectedUI();
+    }
+
+    // 🎯 NEW: Immediate handler without coroutine
+    private void HandleAccountConnectedImmediate(string address, bool suppressFeedback)
+    {
+        if (string.IsNullOrEmpty(address))
+        {
+            Debug.LogError("[Wallet] Received null/empty address!");
+            if (!suppressFeedback) notificationPopup?.Show("Error", "Invalid Address", Color.red);
+            return;
+        }
+
+        try 
+        {
+            Debug.Log($"[Wallet] Processing connection for address: {address}");
+            
+            UserPublicKey = new PublicKey(address);
+            PlayerAccount = null; // External wallet, no local account
+            
+            UpdateConnectedUI(address);
+            
+            if (!suppressFeedback) 
             {
-                AnalyticsManager.Instance.SetUserWallet(PlayerAccount.PublicKey);
+                notificationPopup?.Show("Success!", "Wallet Connected", Color.green);
             }
-            // ---------------------------------------------------------
+            
+            Debug.Log($"[Wallet] ✅ Successfully connected: {address}");
+        } 
+        catch (Exception ex) 
+        { 
+            Debug.LogError($"[Wallet] Failed to process address: {ex.Message}");
+            if (!suppressFeedback) notificationPopup?.Show("Error", "Invalid Address", Color.red);
         }
     }
 
-    private void UpdateUI(string publicKey)
+    // Keep old coroutine version for backward compatibility if needed elsewhere
+    private IEnumerator HandleAccountConnected(string address, bool suppressFeedback)
     {
-        if (loginPanel != null) loginPanel.SetActive(false);
-        if (connectedPanel != null) connectedPanel.SetActive(true);
-
-        if (loginPanel2 != null) loginPanel2.SetActive(false);
-        if (connectedPanel2 != null) connectedPanel2.SetActive(true);
-
-        if (addressText != null)
-        {
-            string shortAddress = publicKey.Substring(0, 4) + "..." + publicKey.Substring(publicKey.Length - 4);
-            addressText.text = shortAddress;
-        }
-
-        if (addressText2 != null)
-        {
-            string shortAddress = publicKey.Substring(0, 4) + "..." + publicKey.Substring(publicKey.Length - 4);
-            addressText2.text = shortAddress;
-        }
+        yield return new WaitForEndOfFrame(); // Wait for frame to complete
+        HandleAccountConnectedImmediate(address, suppressFeedback);
     }
 
-    public void CopyAddressToClipboard()
+    public async void ConnectWallet()
     {
-        if (PlayerAccount != null)
+#if UNITY_EDITOR
+        LoginOrCreateEditorWallet(false);
+#elif UNITY_WEBGL
+        await LoginWebGLWallet();
+#else
+        Debug.Log("[Wallet] ConnectWallet called");
+        
+        // Ensure AppKit is initialized
+        if (!AppKit.IsInitialized) 
         {
-            GUIUtility.systemCopyBuffer = PlayerAccount.PublicKey;
+            Debug.Log("[Wallet] AppKit not initialized, initializing now...");
+            try
+            {
+                await InitializeAppKit();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Wallet] Failed to initialize AppKit: {ex.Message}");
+                notificationPopup?.Show("Error", "Failed to initialize wallet", Color.red);
+                return;
+            }
         }
+        
+        // Ensure events are subscribed (safe to call multiple times)
+        SubscribeToAppKitEvents();
+        
+        Debug.Log("[Wallet] Opening AppKit modal...");
+        try
+        {
+            AppKit.OpenModal();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[Wallet] Failed to open modal: {ex.Message}");
+            notificationPopup?.Show("Error", "Failed to open wallet", Color.red);
+        }
+#endif
+    }
+
+    private async Task InitializeAppKit()
+    {
+        var metadata = new Metadata("Vortiq", "Blockchain Arcade", "https://vertiq.game", "https://icon.png");
+        var config = new AppKitConfig {
+            projectId = reownProjectId.Trim(), 
+            metadata = metadata,
+            supportedChains = new[] { ChainConstants.Chains.Solana },
+            includedWalletIds = new[] { JUPITER_ID }
+        };
+        await AppKit.InitializeAsync(config);
+        Debug.Log("[Wallet] AppKit initialized successfully.");
+    }
+
+    private async Task LoginWebGLWallet()
+    {
+        try {
+            Account account = await Web3.Instance.LoginWalletAdapter();
+            if (account != null) OnLoginSuccess(account, false);
+        } catch (Exception ex) { Debug.LogError($"[Wallet] WebGL Login Error: {ex.Message}"); }
+    }
+
+    private void LoginOrCreateEditorWallet(bool suppressFeedback)
+    {
+        string saved = PlayerPrefs.GetString(PREFS_KEY, "");
+        Mnemonic mnemonic = string.IsNullOrEmpty(saved) ? new Mnemonic(WordList.English, WordCount.Twelve) : new Mnemonic(saved);
+        if (string.IsNullOrEmpty(saved)) { PlayerPrefs.SetString(PREFS_KEY, mnemonic.ToString()); PlayerPrefs.Save(); }
+        OnLoginSuccess(new Wallet(mnemonic).Account, suppressFeedback);
+    }
+
+    private void OnLoginSuccess(Account account, bool suppressFeedback)
+    {
+        if (account == null) return;
+        PlayerAccount = account;
+        UserPublicKey = account.PublicKey; 
+        UpdateConnectedUI(account.PublicKey.ToString());
+        if (!suppressFeedback) notificationPopup?.Show("Success!", "Wallet Connected", Color.green);
+    }
+
+    private void UpdateConnectedUI(string publicKey)
+    {
+        Debug.Log($"[Wallet] UpdateConnectedUI called with: {publicKey}");
+        
+        string shortAddr = publicKey.Length >= 8 
+            ? $"{publicKey.Substring(0, 4)}...{publicKey.Substring(publicKey.Length - 4)}" 
+            : publicKey;
+        
+        if (addressText != null) 
+        {
+            addressText.text = shortAddr;
+            Debug.Log($"[Wallet] Set addressText to: {shortAddr}");
+        }
+        
+        if (addressText2 != null) 
+        {
+            addressText2.text = shortAddr;
+            Debug.Log($"[Wallet] Set addressText2 to: {shortAddr}");
+        }
+        
+        // 🎯 CRITICAL: Null checks and logging for each UI element
+        if(loginPanel != null) 
+        {
+            loginPanel.SetActive(false);
+            Debug.Log("[Wallet] loginPanel disabled");
+        }
+        else Debug.LogWarning("[Wallet] loginPanel is NULL!");
+        
+        if(connectedPanel != null) 
+        {
+            connectedPanel.SetActive(true);
+            Debug.Log("[Wallet] connectedPanel enabled");
+        }
+        else Debug.LogWarning("[Wallet] connectedPanel is NULL!");
+        
+        if(loginPanel2 != null) 
+        {
+            loginPanel2.SetActive(false);
+            Debug.Log("[Wallet] loginPanel2 disabled");
+        }
+        else Debug.LogWarning("[Wallet] loginPanel2 is NULL!");
+        
+        if(connectedPanel2 != null) 
+        {
+            connectedPanel2.SetActive(true);
+            Debug.Log("[Wallet] connectedPanel2 enabled");
+        }
+        else Debug.LogWarning("[Wallet] connectedPanel2 is NULL!");
+    }
+
+    private void UpdateDisconnectedUI()
+    {
+        Debug.Log("[Wallet] UpdateDisconnectedUI called");
+        
+        if (addressText != null) addressText.text = "";
+        if (addressText2 != null) addressText2.text = "";
+        
+        if(loginPanel != null) loginPanel.SetActive(true);
+        if(connectedPanel != null) connectedPanel.SetActive(false);
+        if(loginPanel2 != null) loginPanel2.SetActive(true);
+        if(connectedPanel2 != null) connectedPanel2.SetActive(false);
+    }
+
+    public async void DisconnectWallet()
+    {
+#if !UNITY_EDITOR && !UNITY_WEBGL
+        Debug.Log("[Wallet] Disconnecting wallet...");
+        if (AppKit.IsInitialized) 
+        {
+            try 
+            {
+                await AppKit.DisconnectAsync();
+                Debug.Log("[Wallet] AppKit disconnected successfully");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Wallet] Disconnect error: {ex.Message}");
+            }
+        }
+#endif
+        PlayerAccount = null; 
+        UserPublicKey = null;
+        UpdateDisconnectedUI();
     }
     
-    // Helper to reset if you actually WANT a new wallet
-    [ContextMenu("Reset Dev Wallet")]
-    public void ResetDevWallet()
-    {
-        PlayerPrefs.DeleteKey(PREFS_KEY);
-        Debug.Log("Dev Wallet Reset! Next play will generate a new address.");
+    public void CopyAddressToClipboard() 
+    { 
+        if (UserPublicKey != null) 
+        {
+            GUIUtility.systemCopyBuffer = UserPublicKey.ToString();
+            Debug.Log($"[Wallet] Copied address to clipboard: {UserPublicKey}");
+        }
     }
 }
