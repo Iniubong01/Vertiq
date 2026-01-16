@@ -1662,7 +1662,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &92739942
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3959,7 +3959,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &256788366
 RectTransform:
   m_ObjectHideFlags: 0
@@ -16012,7 +16012,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1332025876
 RectTransform:
   m_ObjectHideFlags: 0
@@ -19076,8 +19076,8 @@ MonoBehaviour:
   paymentProcessor: {fileID: 1740277884}
   playTokenMintAddress: PLAYs3GSSadH2q2JLS7djp7yzeT75NK78XgrE5YLrfq
   playTokenPrice: 1
-  coinsRewardAmount: 100
-  pricePack10: 0.024
+  coinsRewardAmount: 125
+  pricePack10: 0.0001
   pricePack50: 0.091
   pricePack100: 0.124
   pricePack200: 0.223

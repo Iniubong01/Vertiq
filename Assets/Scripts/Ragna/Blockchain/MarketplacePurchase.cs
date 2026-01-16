@@ -29,7 +29,6 @@ public class MarketplacePurchase : MonoBehaviour
     {
         if (Web3.Instance == null || Web3.Rpc == null)
         {
-            // Auto-recover RPC if lost (common on Android)
             if (Web3.Instance != null)
             {
                 Web3.Instance.customRpc = "https://api.mainnet-beta.solana.com";
@@ -42,7 +41,7 @@ public class MarketplacePurchase : MonoBehaviour
 
     private async Task PerformPurchase(float amount, string mintAddress, Action onSuccess)
     {
-        // 1. SETUP CHECKS
+        // 1. SETUP
         if (!EnsureWeb3Initialized()) 
         {
             ShowPopup("System Error", "Connection lost.", Color.red);
@@ -51,7 +50,6 @@ public class MarketplacePurchase : MonoBehaviour
 
         bool isToken = !string.IsNullOrEmpty(mintAddress);
         string currencyName = isToken ? "$PLAY" : "SOL";
-
         PublicKey buyerKey = WalletConnector.UserPublicKey;
         
         // Android Fallback
@@ -66,18 +64,11 @@ public class MarketplacePurchase : MonoBehaviour
 
         // 2. BUILD INSTRUCTIONS
         var instructions = new List<TransactionInstruction>();
-        
-        // [CRITICAL] Priority Fee: Increase to 100k to ensure it lands on Mainnet
         instructions.Add(ComputeBudgetProgram.SetComputeUnitLimit(300_000));
         instructions.Add(ComputeBudgetProgram.SetComputeUnitPrice(100_000)); 
 
         try 
         {
-            // Check Balance
-            var balance = await Web3.Rpc.GetBalanceAsync(buyerKey);
-            if (!balance.WasSuccessful) { ShowPopup("Error", "Check internet.", Color.red); return; }
-
-            // Add Transfer Instruction
              if (isToken)
             {
                 PublicKey tokenMint = new PublicKey(mintAddress);
@@ -89,7 +80,6 @@ public class MarketplacePurchase : MonoBehaviour
                 
                 var dest = await FindTokenAccountBroad(sellerKey, tokenMint.ToString());
                 PublicKey destParams = dest.PublicKey;
-                
                 if(destParams == null)
                 {
                     destParams = AssociatedTokenAccountProgram.DeriveAssociatedTokenAccount(sellerKey, tokenMint);
@@ -108,40 +98,57 @@ public class MarketplacePurchase : MonoBehaviour
         catch (Exception ex) { Debug.LogError(ex); return; }
 
         // 3. GET BLOCKHASH
-        ShowPopup("Processing", "Please sign in wallet...", Color.yellow);
-        // Use Finalized to prevent "Blockhash not found" errors
+        ShowPopup("Processing", "Please sign...", Color.yellow);
         var blockHash = await Web3.Rpc.GetLatestBlockHashAsync(Commitment.Finalized);
         if (!blockHash.WasSuccessful) { ShowPopup("Error", "Network error.", Color.red); return; }
 
-        // 4. CREATE TRANSACTION (SAFE MODE)
-        // We use the Transaction class + Explicit Signature list to fix the wallet error
-        var transaction = new Transaction();
-        transaction.RecentBlockHash = blockHash.Result.Value.Blockhash;
-        transaction.FeePayer = buyerKey;
-        transaction.Instructions = instructions;
-        
-        // [CRITICAL FIX] Initialize signatures list manually to prevent "Object reference" crash
-        transaction.Signatures = new List<SignaturePubKeyPair>();
-        transaction.Signatures.Add(new SignaturePubKeyPair { PublicKey = buyerKey, Signature = new byte[64] });
-
-        // 5. SIGN & BROADCAST LOOP
+        // 4. SIGN & BROADCAST
         string signedTxBase64 = null;
 
         try
         {
-            // A: Editor
+            // =================================================================
+            // PATH A: EDITOR (Private Key)
+            // =================================================================
             if (WalletConnector.PlayerAccount != null)
             {
+                Debug.Log("[Marketplace] Signing with Local Editor Account...");
+                
+                var transaction = new Transaction
+                {
+                    RecentBlockHash = blockHash.Result.Value.Blockhash,
+                    FeePayer = buyerKey,
+                    Instructions = instructions
+                    // NOTE: Do NOT add placeholder signatures here for Editor!
+                    // It corrupts the transaction sanitation.
+                };
+
+                // Sign directly
                 transaction.Sign(WalletConnector.PlayerAccount);
                 signedTxBase64 = Convert.ToBase64String(transaction.Serialize());
             }
-            // B: Android (AppKit)
+            // =================================================================
+            // PATH B: ANDROID / APPKIT (External Wallet)
+            // =================================================================
             else if (AppKit.IsInitialized)
             {
-                byte[] txBytes = transaction.Serialize(); // This format works for Phantom/Jupiter
+                Debug.Log("[Marketplace] Preparing AppKit Transaction...");
+
+                var transaction = new Transaction
+                {
+                    RecentBlockHash = blockHash.Result.Value.Blockhash,
+                    FeePayer = buyerKey,
+                    Instructions = instructions,
+                    // [ANDROID ONLY FIX] Add placeholder so Wallet sees 1 signer
+                    Signatures = new List<SignaturePubKeyPair> 
+                    { 
+                        new SignaturePubKeyPair { PublicKey = buyerKey, Signature = new byte[64] } 
+                    }
+                };
+
+                byte[] txBytes = transaction.Serialize();
                 string unsigTxBase64 = Convert.ToBase64String(txBytes);
 
-                Debug.Log("[Marketplace] Requesting AppKit Signature...");
                 var signResponse = await AppKit.Solana.SignTransactionAsync(unsigTxBase64);
 
                 if (signResponse != null && !string.IsNullOrEmpty(signResponse.TransactionBase64))
@@ -162,39 +169,56 @@ public class MarketplacePurchase : MonoBehaviour
             return;
         }
 
-        // 6. CONFIRMATION LOOP (Fixes "Success but no deduction")
+        // 5. CONFIRMATION LOOP
         if (!string.IsNullOrEmpty(signedTxBase64))
         {
             ShowPopup("Confirming", "Waiting for network...", Color.yellow);
             
-            // Extract signature for tracking
-            string signature = GetSignatureFromTx(signedTxBase64);
+            // Fix for Editor: The signature extraction might differ slightly if not fully signed/encoded same way
+            // But usually this works for both.
+            byte[] txBytesForSig = Convert.FromBase64String(signedTxBase64);
+            string signature = "";
+            
+            if (txBytesForSig.Length > 65) 
+            {
+                byte[] sigBytes = new byte[64];
+                Array.Copy(txBytesForSig, 1, sigBytes, 0, 64);
+                signature = Solana.Unity.Wallet.Utilities.Encoders.Base58.EncodeData(sigBytes);
+            }
+
             Debug.Log($"[Marketplace] Tracking Signature: {signature}");
 
-            // Loop for 30 seconds to ensure it lands
-            float timeout = 30f;
+            // Immediate Send
+            await Web3.Rpc.SendTransactionAsync(txBytesForSig, skipPreflight: true, commitment: Commitment.Processed);
+
+            // Wait loop
+            float timeout = 45f;
             float startTime = Time.time;
             bool confirmed = false;
 
             while (Time.time - startTime < timeout && !confirmed)
             {
-                // Spam the network (Safe on Solana)
-                await Web3.Rpc.SendTransactionAsync(signedTxBase64, skipPreflight: true); // Skip simulation to avoid false failures
+                await Task.Delay(1000);
                 
-                await Task.Delay(1500); // Wait 1.5s
+                // Re-broadcast (Spamming is safe)
+                await Web3.Rpc.SendTransactionAsync(txBytesForSig, skipPreflight: true, commitment: Commitment.Processed);
 
-                // Check status
                 var status = await Web3.Rpc.GetSignatureStatusesAsync(new List<string> { signature }, true);
-                if (status.WasSuccessful && status.Result.Value[0] != null)
+                if (status.WasSuccessful && status.Result.Value != null && status.Result.Value.Count > 0)
                 {
                     var s = status.Result.Value[0];
-                    if (s.ConfirmationStatus == "confirmed" || s.ConfirmationStatus == "finalized")
+                    // Check if status exists (it might be null if tx hasn't hit node yet)
+                    if (s != null)
                     {
-                        if (s.Error == null) confirmed = true;
-                        else 
+                        if (s.ConfirmationStatus == "confirmed" || s.ConfirmationStatus == "finalized")
                         {
-                            ShowPopup("Failed", "Transaction failed on-chain.", Color.red);
-                            return; 
+                            if (s.Error == null) confirmed = true;
+                            else 
+                            {
+                                Debug.LogError($"[Marketplace] On-chain Error: {s.Error}");
+                                ShowPopup("Failed", "Transaction failed on-chain.", Color.red);
+                                return; 
+                            }
                         }
                     }
                 }
@@ -210,20 +234,6 @@ public class MarketplacePurchase : MonoBehaviour
                 ShowPopup("Timeout", "Network congested. Check wallet.", Color.red);
             }
         }
-    }
-
-    private string GetSignatureFromTx(string base64)
-    {
-        try {
-            byte[] b = Convert.FromBase64String(base64);
-            // First byte is count, next 64 are signature
-            if(b.Length > 65) {
-                byte[] sig = new byte[64];
-                Array.Copy(b, 1, sig, 0, 64);
-                return Solana.Unity.Wallet.Utilities.Encoders.Base58.EncodeData(sig);
-            }
-        } catch {}
-        return null;
     }
 
     private async Task<int> GetTokenDecimals(PublicKey mint)
