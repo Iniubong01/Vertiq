@@ -17,6 +17,16 @@
       },
       "hash": "d42fcd5b038ff12ded039ad6c21c26926bc6853b"
     },
+    "com.reown.appkit.solana.unity": {
+      "version": "1.5.2",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.reown.appkit.unity": "1.5.2",
+        "com.solana.unity_sdk": "1.2.9"
+      },
+      "url": "https://package.openupm.com"
+    },
     "com.reown.appkit.unity": {
       "version": "1.5.2",
       "depth": 0,

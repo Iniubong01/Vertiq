@@ -35,11 +35,25 @@ public class PauseManager : MonoBehaviour
 
     private void OnPausePerformed(InputAction.CallbackContext context)
     {
+        // 🎯 FIX: Don't pause if a power-up was just activated
+        if (PowerUpManager.Instance != null && PowerUpManager.Instance.WasPowerUpJustActivated())
+        {
+            Debug.Log("[PauseManager] Ignoring pause - power-up just activated");
+            return;
+        }
+        
         TogglePause();
     }
 
     public void TogglePause()
     {
+        // 🎯 ADDITIONAL CHECK: Don't pause if power-up just activated
+        if (PowerUpManager.Instance != null && PowerUpManager.Instance.WasPowerUpJustActivated())
+        {
+            Debug.Log("[PauseManager] Ignoring pause toggle - power-up just activated");
+            return;
+        }
+        
         isPaused = !isPaused;
 
         if (isPaused)
@@ -59,7 +73,6 @@ public class PauseManager : MonoBehaviour
         pauseButton.SetActive(false); 
         Time.timeScale = 0f; 
 
-        // [ADDED] Tell PowerUpManager to disable interactivity
         if (PowerUpManager.Instance != null)
         {
             PowerUpManager.Instance.SetPausedState(true);
@@ -76,7 +89,6 @@ public class PauseManager : MonoBehaviour
         pauseButton.SetActive(true); 
         Time.timeScale = 1f; 
         
-        // [ADDED] Tell PowerUpManager to re-enable interactivity (if items exist)
         if (PowerUpManager.Instance != null)
         {
             PowerUpManager.Instance.SetPausedState(false);

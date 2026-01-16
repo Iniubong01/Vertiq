@@ -2,15 +2,31 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using System.Collections;
+using System.Collections.Generic;
 
 public class UISelectionKeeper : MonoBehaviour
 {
     private GameObject lastSelected;
-    [SerializeField] private GameObject defaultSelection; // Set this in Inspector to your first button
-    [SerializeField] private Button[] allButtons; // Drag all buttons in your UI here
+    [SerializeField] private GameObject defaultSelection;
+    [SerializeField] private Button[] allButtons; // Only include buttons you WANT to be auto-selected
+    
+    // 🎯 NEW: Explicitly exclude these buttons from auto-selection
+    [SerializeField] private Button[] excludedButtons; // Drag pause button, home button, etc. here
+
+    private HashSet<Button> excludedButtonSet;
 
     void Start()
     {
+        // Build a HashSet for fast lookup of excluded buttons
+        excludedButtonSet = new HashSet<Button>();
+        if (excludedButtons != null)
+        {
+            foreach (Button btn in excludedButtons)
+            {
+                if (btn != null) excludedButtonSet.Add(btn);
+            }
+        }
+
         // Select the default button on start
         if (defaultSelection != null)
         {
@@ -18,9 +34,21 @@ public class UISelectionKeeper : MonoBehaviour
         }
         
         // If allButtons is not set, try to find all buttons automatically
+        // BUT exclude the ones in excludedButtons
         if (allButtons == null || allButtons.Length == 0)
         {
-            allButtons = GetComponentsInChildren<Button>(true);
+            Button[] foundButtons = GetComponentsInChildren<Button>(true);
+            List<Button> filteredButtons = new List<Button>();
+            
+            foreach (Button btn in foundButtons)
+            {
+                if (!excludedButtonSet.Contains(btn))
+                {
+                    filteredButtons.Add(btn);
+                }
+            }
+            
+            allButtons = filteredButtons.ToArray();
         }
     }
 
@@ -38,7 +66,7 @@ public class UISelectionKeeper : MonoBehaviour
             if (lastSelected != null && lastSelected.activeInHierarchy)
             {
                 Button btn = lastSelected.GetComponent<Button>();
-                if (btn != null && btn.interactable)
+                if (btn != null && btn.interactable && !IsExcluded(btn))
                 {
                     SelectButton(lastSelected);
                     return;
@@ -54,11 +82,11 @@ public class UISelectionKeeper : MonoBehaviour
                 return;
             }
             
-            // Last resort: use default selection
+            // Last resort: use default selection (if not excluded)
             if (defaultSelection != null && defaultSelection.activeInHierarchy)
             {
                 Button btn = defaultSelection.GetComponent<Button>();
-                if (btn != null && btn.interactable)
+                if (btn != null && btn.interactable && !IsExcluded(btn))
                 {
                     SelectButton(defaultSelection);
                     lastSelected = defaultSelection;
@@ -67,14 +95,20 @@ public class UISelectionKeeper : MonoBehaviour
         }
     }
 
-    // Find the first active and interactable button
+    // 🎯 NEW: Check if a button should be excluded from auto-selection
+    private bool IsExcluded(Button button)
+    {
+        return excludedButtonSet != null && excludedButtonSet.Contains(button);
+    }
+
+    // Find the first active and interactable button (excluding excluded buttons)
     private GameObject FindFirstActiveButton()
     {
         if (allButtons == null) return null;
         
         foreach (Button btn in allButtons)
         {
-            if (btn != null && btn.gameObject.activeInHierarchy && btn.interactable)
+            if (btn != null && btn.gameObject.activeInHierarchy && btn.interactable && !IsExcluded(btn))
             {
                 return btn.gameObject;
             }
@@ -93,7 +127,7 @@ public class UISelectionKeeper : MonoBehaviour
         // Try to find the next button after the current one
         foreach (Button btn in allButtons)
         {
-            if (foundCurrent && btn != null && btn.gameObject.activeInHierarchy && btn.interactable)
+            if (foundCurrent && btn != null && btn.gameObject.activeInHierarchy && btn.interactable && !IsExcluded(btn))
             {
                 return btn.gameObject;
             }
@@ -115,7 +149,7 @@ public class UISelectionKeeper : MonoBehaviour
         if (lastSelected != null && lastSelected.activeInHierarchy)
         {
             Button btn = lastSelected.GetComponent<Button>();
-            if (btn != null && btn.interactable)
+            if (btn != null && btn.interactable && !IsExcluded(btn))
             {
                 SelectButton(lastSelected);
                 return;
@@ -136,8 +170,8 @@ public class UISelectionKeeper : MonoBehaviour
     {
         if (button == null) return;
         
-        EventSystem.current.SetSelectedGameObject(null); // Clear first
-        EventSystem.current.SetSelectedGameObject(button); // Then set
+        EventSystem.current.SetSelectedGameObject(null);
+        EventSystem.current.SetSelectedGameObject(button);
     }
 
     // Call this from any button's OnClick event in the Inspector
@@ -155,7 +189,7 @@ public class UISelectionKeeper : MonoBehaviour
         if (clickedButton != null && clickedButton.activeInHierarchy)
         {
             Button btn = clickedButton.GetComponent<Button>();
-            if (btn != null && btn.interactable)
+            if (btn != null && btn.interactable && !IsExcluded(btn))
             {
                 SelectButton(clickedButton);
                 yield break;
@@ -168,6 +202,12 @@ public class UISelectionKeeper : MonoBehaviour
         {
             SelectButton(nextButton);
             lastSelected = nextButton;
+        }
+        else
+        {
+            // 🎯 NEW: If no valid button found, clear selection entirely
+            // This prevents accidentally selecting the pause button
+            EventSystem.current.SetSelectedGameObject(null);
         }
     }
 }

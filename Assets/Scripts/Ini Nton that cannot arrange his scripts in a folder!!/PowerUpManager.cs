@@ -39,14 +39,17 @@ public class PowerUpManager : MonoBehaviour
 
     private int currentSelectionIndex = 0;
 
-    // [FIX] Track active Coroutines to prevent overlaps
+    // Track active Coroutines to prevent overlaps
     private Coroutine shieldCoroutine;
     private Coroutine mbCoroutine;
     private Coroutine freezeCoroutine;
     private Coroutine livesCoroutine;
 
-    // [FIX] Store original values safely at the class level
+    // Store original values safely at the class level
     private int originalPowerLevel; 
+
+    // FIX: Track if a power-up button was just clicked to prevent pause conflicts
+    private bool powerUpJustActivated = false;
 
     private void Awake()
     {
@@ -60,16 +63,35 @@ public class PowerUpManager : MonoBehaviour
         if (pObj != null) player = pObj.GetComponent<Player>();
         else Debug.LogError("[PowerUpManager] Player object not found!");
 
-        SButton.onClick.AddListener(ShieldBL);
-        FTButton.onClick.AddListener(FreezeTimeBL);
-        MBButton.onClick.AddListener(MultipleBulletsBL);
-        FLButton.onClick.AddListener(FullLivesBL);
+        // FIX: Add listeners that mark when power-ups are activated
+        SButton.onClick.AddListener(() => { MarkPowerUpActivation(); ShieldBL(); });
+        FTButton.onClick.AddListener(() => { MarkPowerUpActivation(); FreezeTimeBL(); });
+        MBButton.onClick.AddListener(() => { MarkPowerUpActivation(); MultipleBulletsBL(); });
+        FLButton.onClick.AddListener(() => { MarkPowerUpActivation(); FullLivesBL(); });
 
         powerUpButtons = new List<Button> { SButton, MBButton, FTButton, FLButton };
 
         UpdateTexts();
         UpdateSelectionVisuals();
     }
+
+    // NEW: Mark that a power-up was just used (prevents pause conflicts)
+    private void MarkPowerUpActivation()
+    {
+        powerUpJustActivated = true;
+        StartCoroutine(ClearPowerUpActivationFlag());
+    }
+
+    private IEnumerator ClearPowerUpActivationFlag()
+    {
+        // Wait a frame to ensure button click is fully processed
+        yield return new WaitForEndOfFrame();
+        yield return new WaitForSeconds(0.1f); // Small delay to prevent any race conditions
+        powerUpJustActivated = false;
+    }
+
+    // NEW: Public getter so PauseManager can check this
+    public bool WasPowerUpJustActivated() => powerUpJustActivated;
 
     public void SetPausedState(bool paused)
     {
@@ -78,10 +100,19 @@ public class PowerUpManager : MonoBehaviour
 
     private void Update()
     {
-        SButton.interactable = !isGamePaused && ShopData.Instance.powerupShield > 0;
-        FTButton.interactable = !isGamePaused && ShopData.Instance.powerupFreezeTime > 0;
-        MBButton.interactable = !isGamePaused && ShopData.Instance.powerupMultipleBullets > 0;
-        FLButton.interactable = !isGamePaused && ShopData.Instance.powerupFullLives > 0;
+        // [FIXED LOGIC]
+        // Button is interactable ONLY if:
+        // 1. Game is NOT paused
+        // 2. You have stock (> 0)
+        // 3. The powerup is NOT currently active (!isActive)
+        
+        SButton.interactable = !isGamePaused && ShopData.Instance.powerupShield > 0 && !shieldActive;
+        
+        FTButton.interactable = !isGamePaused && ShopData.Instance.powerupFreezeTime > 0 && !freezeTimeActive;
+        
+        MBButton.interactable = !isGamePaused && ShopData.Instance.powerupMultipleBullets > 0 && !multipleBulletsActive;
+        
+        FLButton.interactable = !isGamePaused && ShopData.Instance.powerupFullLives > 0 && !fullLives;
     }
 
     public void Navigate(int direction)
@@ -112,7 +143,7 @@ public class PowerUpManager : MonoBehaviour
         }
     }
 
-    // --- REFACTORED POWERUP HANDLERS (The Fix) ---
+    // --- POWERUP HANDLERS ---
 
     // 1. MULTIPLE BULLETS
     public void MultipleBulletsBL()
@@ -197,7 +228,7 @@ public class PowerUpManager : MonoBehaviour
         freezeCoroutine = null;
     }
 
-    // 4. FULL LIVES (Instant, no coroutine needed usually, but keeping logic consistent)
+    // 4. FULL LIVES
     public void FullLivesBL()
     {
         if(ShopData.Instance.powerupFullLives <= 0) return;
@@ -246,7 +277,6 @@ public class PowerUpManager : MonoBehaviour
         switch (type)
         {
             case PowerUpType.Shield:
-                // We simulate the BL logic without spending coins
                 if (shieldCoroutine != null) StopCoroutine(shieldCoroutine);
                 if (!shieldActive) { shieldActive = true; shield.SetActive(true); }
                 shieldCoroutine = StartCoroutine(ResetShield(duration));

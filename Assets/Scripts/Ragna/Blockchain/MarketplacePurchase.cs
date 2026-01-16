@@ -1,23 +1,19 @@
 using UnityEngine;
 using Solana.Unity.SDK;
 using Solana.Unity.Rpc.Models;
+using Solana.Unity.Rpc.Types; 
 using Solana.Unity.Programs;
 using Solana.Unity.Wallet;
 using System.Collections.Generic;
 using System;
-using Solana.Unity.Rpc.Core.Http;
 using System.Threading.Tasks;
+using Reown.AppKit.Unity;
 
 public class MarketplacePurchase : MonoBehaviour
 {
     [Header("Payment Setup")]
-    public string sellerWallet; 
-
-    [Header("UI Feedback")]
+    public string sellerWallet;
     public NotificationPopup notificationPopup;
-
-    // Solana Rent Exemption limit (~0.00089 SOL)
-    private const ulong MIN_RENT_EXEMPT_LAMPORTS = 890880; 
 
     public async void PurchaseWithSol(float priceInSol, Action onPurchaseSuccess)
     {
@@ -29,202 +25,217 @@ public class MarketplacePurchase : MonoBehaviour
         await PerformPurchase(tokenAmount, mintAddress, onPurchaseSuccess);
     }
 
+    private bool EnsureWeb3Initialized()
+    {
+        if (Web3.Instance == null || Web3.Rpc == null)
+        {
+            // Auto-recover RPC if lost (common on Android)
+            if (Web3.Instance != null)
+            {
+                Web3.Instance.customRpc = "https://api.mainnet-beta.solana.com";
+                return Web3.Rpc != null;
+            }
+            return false;
+        }
+        return true;
+    }
+
     private async Task PerformPurchase(float amount, string mintAddress, Action onSuccess)
     {
+        // 1. SETUP CHECKS
+        if (!EnsureWeb3Initialized()) 
+        {
+            ShowPopup("System Error", "Connection lost.", Color.red);
+            return;
+        }
+
         bool isToken = !string.IsNullOrEmpty(mintAddress);
         string currencyName = isToken ? "$PLAY" : "SOL";
 
-        // --- 1. VALIDATION ---
         PublicKey buyerKey = WalletConnector.UserPublicKey;
-        if (buyerKey == null) { ShowPopup("Wallet Error", "Connect wallet first.", Color.red); return; }
         
-        if (string.IsNullOrEmpty(sellerWallet)) { ShowPopup("Config Error", "Seller address missing.", Color.red); return; }
+        // Android Fallback
+        if (buyerKey == null && AppKit.IsInitialized && AppKit.Account != null)
+        {
+            buyerKey = new PublicKey(AppKit.Account.Address);
+        }
+
+        if (buyerKey == null) { ShowPopup("Wallet Error", "Connect wallet first.", Color.red); return; }
+
         PublicKey sellerKey = new PublicKey(sellerWallet);
 
+        // 2. BUILD INSTRUCTIONS
         var instructions = new List<TransactionInstruction>();
+        
+        // [CRITICAL] Priority Fee: Increase to 100k to ensure it lands on Mainnet
+        instructions.Add(ComputeBudgetProgram.SetComputeUnitLimit(300_000));
+        instructions.Add(ComputeBudgetProgram.SetComputeUnitPrice(100_000)); 
 
-        try
+        try 
         {
-            // --- 2. FEE & BALANCE SAFETY CHECK ---
-            ulong minSolForFees = 5000; // ~0.000005 SOL for network fee
-            
-            // Calculate total SOL required to be in the wallet
-            ulong requiredSolTotal = minSolForFees; 
-            if (!isToken) requiredSolTotal += (ulong)(amount * 1_000_000_000);
+            // Check Balance
+            var balance = await Web3.Rpc.GetBalanceAsync(buyerKey);
+            if (!balance.WasSuccessful) { ShowPopup("Error", "Check internet.", Color.red); return; }
 
-            // Fetch SOL Balance
-            var balanceResult = await Web3.Rpc.GetBalanceAsync(buyerKey);
-            
-            if (!balanceResult.WasSuccessful)
-            {
-                ShowPopup("Network Error", "Could not fetch balance.", Color.red);
-                return;
-            }
-
-            ulong currentSolBalance = balanceResult.Result.Value;
-
-            // CHECK 1: Do we have enough SOL?
-            if (currentSolBalance < requiredSolTotal)
-            {
-                Debug.LogWarning($"[Marketplace] Low SOL. Have: {currentSolBalance}, Need: {requiredSolTotal}");
-                
-                if (!isToken)
-                {
-                    ShowPopup("Insufficient SOL", $"You need {amount} SOL + Fees.", Color.red);
-                }
-                else
-                {
-                    ShowPopup("Insufficient SOL", "You need SOL for gas fees.", Color.red);
-                }
-                return; // Stop here gracefully
-            }
-
-            // --- 3. BUILD INSTRUCTIONS ---
-            if (isToken)
+            // Add Transfer Instruction
+             if (isToken)
             {
                 PublicKey tokenMint = new PublicKey(mintAddress);
-
-                // CHECK 2: Do we have enough Tokens?
-                var sourceResult = await FindTokenAccountBroad(buyerKey, tokenMint.ToString());
-                if (sourceResult.PublicKey == null) 
-                {
-                    ShowPopup("Insufficient Funds", $"You have 0 {currencyName}.", Color.red);
-                    return;
-                }
-
-                // Check actual token balance inside the account
-                var tokenBalanceResult = await Web3.Rpc.GetTokenAccountBalanceAsync(sourceResult.PublicKey.ToString());
-                if (tokenBalanceResult.WasSuccessful)
-                {
-                    // [FIX] Use UiAmountString to fix CS0618 & CS0266 errors
-                    double currentTokens = 0;
-                    string amountString = tokenBalanceResult.Result.Value.UiAmountString;
-                    
-                    if (double.TryParse(amountString, out double parsedVal))
-                    {
-                        currentTokens = parsedVal;
-                    }
-                    
-                    if (currentTokens < amount)
-                    {
-                        ShowPopup("Low Balance", $"You need {amount} {currencyName}.", Color.red);
-                        return; // Stop here gracefully
-                    }
-                }
-
-                // Calculate Raw Amount
+                var source = await FindTokenAccountBroad(buyerKey, tokenMint.ToString());
+                if (source.PublicKey == null) { ShowPopup("Error", "No token account", Color.red); return; }
+                
                 int decimals = await GetTokenDecimals(tokenMint);
                 ulong amountRaw = (ulong)(amount * Math.Pow(10, decimals));
-
-                // Check/Create Seller Token Account
-                var destResult = await FindTokenAccountBroad(sellerKey, tokenMint.ToString());
-                PublicKey destAccount = destResult.PublicKey;
                 
-                if (destAccount == null)
+                var dest = await FindTokenAccountBroad(sellerKey, tokenMint.ToString());
+                PublicKey destParams = dest.PublicKey;
+                
+                if(destParams == null)
                 {
-                    destAccount = AssociatedTokenAccountProgram.DeriveAssociatedTokenAccount(sellerKey, tokenMint);
+                    destParams = AssociatedTokenAccountProgram.DeriveAssociatedTokenAccount(sellerKey, tokenMint);
                     instructions.Add(AssociatedTokenAccountProgram.CreateAssociatedTokenAccount(buyerKey, sellerKey, tokenMint));
                 }
 
-                var templateIx = TokenProgram.Transfer(sourceResult.PublicKey, destAccount, amountRaw, buyerKey);
-                instructions.Add(new TransactionInstruction { ProgramId = sourceResult.Owner, Keys = templateIx.Keys, Data = templateIx.Data });
+                var tx = TokenProgram.Transfer(source.PublicKey, destParams, amountRaw, buyerKey);
+                instructions.Add(new TransactionInstruction { ProgramId = source.Owner, Keys = tx.Keys, Data = tx.Data });
             }
             else
             {
-                // SOL Logic
-                ulong lamportsToSend = (ulong)(amount * 1_000_000_000);
+                ulong lamports = (ulong)(amount * 1_000_000_000);
+                instructions.Add(SystemProgram.Transfer(buyerKey, sellerKey, lamports));
+            }
+        }
+        catch (Exception ex) { Debug.LogError(ex); return; }
 
-                // --- 4. RENT EXEMPTION CHECK ---
-                if (lamportsToSend < MIN_RENT_EXEMPT_LAMPORTS)
+        // 3. GET BLOCKHASH
+        ShowPopup("Processing", "Please sign in wallet...", Color.yellow);
+        // Use Finalized to prevent "Blockhash not found" errors
+        var blockHash = await Web3.Rpc.GetLatestBlockHashAsync(Commitment.Finalized);
+        if (!blockHash.WasSuccessful) { ShowPopup("Error", "Network error.", Color.red); return; }
+
+        // 4. CREATE TRANSACTION (SAFE MODE)
+        // We use the Transaction class + Explicit Signature list to fix the wallet error
+        var transaction = new Transaction();
+        transaction.RecentBlockHash = blockHash.Result.Value.Blockhash;
+        transaction.FeePayer = buyerKey;
+        transaction.Instructions = instructions;
+        
+        // [CRITICAL FIX] Initialize signatures list manually to prevent "Object reference" crash
+        transaction.Signatures = new List<SignaturePubKeyPair>();
+        transaction.Signatures.Add(new SignaturePubKeyPair { PublicKey = buyerKey, Signature = new byte[64] });
+
+        // 5. SIGN & BROADCAST LOOP
+        string signedTxBase64 = null;
+
+        try
+        {
+            // A: Editor
+            if (WalletConnector.PlayerAccount != null)
+            {
+                transaction.Sign(WalletConnector.PlayerAccount);
+                signedTxBase64 = Convert.ToBase64String(transaction.Serialize());
+            }
+            // B: Android (AppKit)
+            else if (AppKit.IsInitialized)
+            {
+                byte[] txBytes = transaction.Serialize(); // This format works for Phantom/Jupiter
+                string unsigTxBase64 = Convert.ToBase64String(txBytes);
+
+                Debug.Log("[Marketplace] Requesting AppKit Signature...");
+                var signResponse = await AppKit.Solana.SignTransactionAsync(unsigTxBase64);
+
+                if (signResponse != null && !string.IsNullOrEmpty(signResponse.TransactionBase64))
                 {
-                    var sellerBalance = await Web3.Rpc.GetBalanceAsync(sellerKey);
-                    if (sellerBalance.WasSuccessful && sellerBalance.Result.Value == 0)
-                    {
-                        ShowPopup("Amount Error", "Transfer too small (Rent Limit).", Color.red);
-                        return;
-                    }
+                    signedTxBase64 = signResponse.TransactionBase64;
                 }
-
-                instructions.Add(SystemProgram.Transfer(buyerKey, sellerKey, lamportsToSend));
+                else
+                {
+                    ShowPopup("Cancelled", "Wallet rejected transaction.", Color.red);
+                    return;
+                }
             }
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[Marketplace] Setup Failed: {ex.Message}");
-            ShowPopup("Error", "Setup failed. Check logs.", Color.red);
+            Debug.LogError($"[Marketplace] Signing Error: {ex.Message}");
+            ShowPopup("Error", "Signing failed.", Color.red);
             return;
         }
 
-        // --- 5. EXECUTE TRANSACTION ---
-        ShowPopup("Processing", $"Approve {amount} {currencyName}...", Color.yellow);
-        
-        var blockHash = await Web3.Rpc.GetLatestBlockHashAsync();
-        if (!blockHash.WasSuccessful) 
-        { 
-            ShowPopup("Connection Error", "Failed to get Blockhash.", Color.red); 
-            return; 
-        }
-
-        var transaction = new Transaction
+        // 6. CONFIRMATION LOOP (Fixes "Success but no deduction")
+        if (!string.IsNullOrEmpty(signedTxBase64))
         {
-            RecentBlockHash = blockHash.Result.Value.Blockhash,
-            FeePayer = buyerKey,
-            Instructions = instructions,
-            Signatures = new List<SignaturePubKeyPair>()
-        };
+            ShowPopup("Confirming", "Waiting for network...", Color.yellow);
+            
+            // Extract signature for tracking
+            string signature = GetSignatureFromTx(signedTxBase64);
+            Debug.Log($"[Marketplace] Tracking Signature: {signature}");
 
-        try 
-        {
-            RequestResult<string> result;
-            if (WalletConnector.PlayerAccount != null)
+            // Loop for 30 seconds to ensure it lands
+            float timeout = 30f;
+            float startTime = Time.time;
+            bool confirmed = false;
+
+            while (Time.time - startTime < timeout && !confirmed)
             {
-                transaction.Sign(WalletConnector.PlayerAccount);
-                result = await Web3.Rpc.SendTransactionAsync(Convert.ToBase64String(transaction.Serialize()));
-            }
-            else
-            {
-                result = await Web3.Wallet.SignAndSendTransaction(transaction);
+                // Spam the network (Safe on Solana)
+                await Web3.Rpc.SendTransactionAsync(signedTxBase64, skipPreflight: true); // Skip simulation to avoid false failures
+                
+                await Task.Delay(1500); // Wait 1.5s
+
+                // Check status
+                var status = await Web3.Rpc.GetSignatureStatusesAsync(new List<string> { signature }, true);
+                if (status.WasSuccessful && status.Result.Value[0] != null)
+                {
+                    var s = status.Result.Value[0];
+                    if (s.ConfirmationStatus == "confirmed" || s.ConfirmationStatus == "finalized")
+                    {
+                        if (s.Error == null) confirmed = true;
+                        else 
+                        {
+                            ShowPopup("Failed", "Transaction failed on-chain.", Color.red);
+                            return; 
+                        }
+                    }
+                }
             }
 
-            if (result.WasSuccessful)
+            if (confirmed)
             {
                 ShowPopup("Success!", "Purchase Complete!", Color.green);
                 onSuccess?.Invoke();
             }
             else
             {
-                string rawError = result.RawRpcResponse ?? result.Reason;
-                Debug.LogError($"[Marketplace] Transaction Failed: {rawError}");
-
-                if (rawError.Contains("InsufficientFundsForRent"))
-                {
-                    ShowPopup("Failed", "Transfer amount too small.", Color.red);
-                }
-                else if (rawError.Contains("Insufficient funds") || rawError.Contains("0x1"))
-                {
-                    ShowPopup("Failed", "Insufficient Funds.", Color.red);
-                }
-                else
-                {
-                    ShowPopup("Failed", "Transaction Failed.", Color.red);
-                }
+                ShowPopup("Timeout", "Network congested. Check wallet.", Color.red);
             }
         }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[Marketplace] RPC/JSON Error: {ex.Message}");
-            ShowPopup("Network Error", "RPC failure. Check internet.", Color.red);
-        }
+    }
+
+    private string GetSignatureFromTx(string base64)
+    {
+        try {
+            byte[] b = Convert.FromBase64String(base64);
+            // First byte is count, next 64 are signature
+            if(b.Length > 65) {
+                byte[] sig = new byte[64];
+                Array.Copy(b, 1, sig, 0, 64);
+                return Solana.Unity.Wallet.Utilities.Encoders.Base58.EncodeData(sig);
+            }
+        } catch {}
+        return null;
     }
 
     private async Task<int> GetTokenDecimals(PublicKey mint)
     {
+        if (!EnsureWeb3Initialized()) return 9;
         var result = await Web3.Rpc.GetTokenSupplyAsync(mint.ToString());
         return result.WasSuccessful ? result.Result.Value.Decimals : 9;
     }
 
     private async Task<(PublicKey PublicKey, PublicKey Owner)> FindTokenAccountBroad(PublicKey owner, string mint)
     {
+        if (!EnsureWeb3Initialized()) return (null, null);
         var result = await Web3.Rpc.GetTokenAccountsByOwnerAsync(owner, mint, null);
         if (result.WasSuccessful && result.Result.Value.Count > 0)
         {

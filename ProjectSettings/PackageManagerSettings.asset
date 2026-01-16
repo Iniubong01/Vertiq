@@ -46,6 +46,7 @@ MonoBehaviour:
     - com.reown.sign.nethereum.unity
     - com.reown.sign.unity
     - com.reown.unity.dependencies
+    - com.reown.appkit.solana.unity
     m_IsDefault: 0
     m_Capabilities: 0
     m_ConfigSource: 4

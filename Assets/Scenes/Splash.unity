@@ -1662,7 +1662,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &92739942
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3959,7 +3959,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &256788366
 RectTransform:
   m_ObjectHideFlags: 0
@@ -4037,31 +4037,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 256788369}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 1679651427}
-        m_TargetAssemblyTypeName: UIManager, Assembly-CSharp
-        m_MethodName: StoreToSolStore
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
-      - m_Target: {fileID: 1679651427}
-        m_TargetAssemblyTypeName: UIManager, Assembly-CSharp
-        m_MethodName: checkInteractivity_CoinPurchaseButton
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
+      m_Calls: []
 --- !u!114 &256788369
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13434,7 +13410,7 @@ CanvasGroup:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1165912018}
   m_Enabled: 1
-  m_Alpha: 0
+  m_Alpha: 1
   m_Interactable: 0
   m_BlocksRaycasts: 0
   m_IgnoreParentGroups: 0
@@ -13573,6 +13549,7 @@ MonoBehaviour:
   - {fileID: 225728346}
   - {fileID: 1735407255}
   - {fileID: 1846509111}
+  excludedButtons: []
 --- !u!1 &1175336979
 GameObject:
   m_ObjectHideFlags: 0
@@ -16035,7 +16012,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1332025876
 RectTransform:
   m_ObjectHideFlags: 0
@@ -19099,8 +19076,8 @@ MonoBehaviour:
   paymentProcessor: {fileID: 1740277884}
   playTokenMintAddress: PLAYs3GSSadH2q2JLS7djp7yzeT75NK78XgrE5YLrfq
   playTokenPrice: 1
-  coinsRewardAmount: 500
-  pricePack10: 0.0001
+  coinsRewardAmount: 100
+  pricePack10: 0.024
   pricePack50: 0.091
   pricePack100: 0.124
   pricePack200: 0.223

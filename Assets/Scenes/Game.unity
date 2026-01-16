@@ -13235,7 +13235,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1031892628
 RectTransform:
   m_ObjectHideFlags: 0
@@ -14284,12 +14284,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::UISelectionKeeper
   defaultSelection: {fileID: 1031892627}
   allButtons:
-  - {fileID: 1031892629}
   - {fileID: 1868837282}
   - {fileID: 648899942}
   - {fileID: 1368197811}
   - {fileID: 1567491126}
-  - {fileID: 0}
+  excludedButtons: []
 --- !u!114 &1201292952
 MonoBehaviour:
   m_ObjectHideFlags: 0
