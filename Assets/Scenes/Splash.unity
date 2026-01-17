@@ -3054,7 +3054,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &187313686
 RectTransform:
   m_ObjectHideFlags: 0
@@ -24079,7 +24079,7 @@ MonoBehaviour:
   maxButton: {fileID: 974547422}
   reverseButton: {fileID: 1105996280}
   notificationPopup: {fileID: 5347610660300725914}
-  slippageBps: 1000
+  slippageBps: 250
   debugMode: 1
 --- !u!4 &1978976748
 Transform:

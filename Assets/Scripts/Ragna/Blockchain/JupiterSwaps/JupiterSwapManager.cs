@@ -209,7 +209,7 @@ public class JupiterSwapManager : MonoBehaviour
 
             if(debugMode) Debug.Log($"[Jupiter] Fetching Quote: {amount} {inputToken} -> {outputToken}");
 
-            // 🎯 USE ADAPTIVE RETRY LOGIC TO FIND ROUTE WITHIN SIZE LIMIT
+            // 🎯 METHOD 3: Use versioned transactions (modern approach)
             currentQuote = await GetQuoteWithRetry(inputMint, outputMint, amountRaw);
 
             if (currentQuote != null)
@@ -219,8 +219,8 @@ public class JupiterSwapManager : MonoBehaviour
             }
             else 
             {
-                Debug.LogError("[Jupiter] No route found within transaction size limit!");
-                ShowPopup("No Route", "Try smaller amount or different tokens", Color.red);
+                Debug.LogError("[Jupiter] No route found!");
+                ShowPopup("No Route", "Try different tokens or amount", Color.red);
                 ClearQuoteInfo();
             }
         }
@@ -232,22 +232,22 @@ public class JupiterSwapManager : MonoBehaviour
         finally { isUpdatingQuote = false; }
     }
 
-    // 🎯 SIMPLIFIED: Just get the best route Jupiter can provide
+    // 🎯 METHOD 3: Use Versioned Transactions - supports up to ~1400 bytes with Address Lookup Tables
     private async Task<JObject> GetQuoteWithRetry(string inputMint, string outputMint, ulong amountRaw)
     {
-        // Start with reasonable maxAccounts that usually works
-        // Jupiter will optimize the transaction automatically
-        int maxAccounts = 64; // Default value that balances route quality with size
+        // Use versioned transactions (no asLegacyTransaction flag)
+        // This allows use of Address Lookup Tables for more complex routes
+        int maxAccounts = 64;
         
-        string url = $"{jupiterBaseUrl}/swap/v1/quote?inputMint={inputMint}&outputMint={outputMint}&amount={amountRaw}&slippageBps={slippageBps}&asLegacyTransaction=true&maxAccounts={maxAccounts}";
+        string url = $"{jupiterBaseUrl}/swap/v1/quote?inputMint={inputMint}&outputMint={outputMint}&amount={amountRaw}&slippageBps={slippageBps}&maxAccounts={maxAccounts}";
         
-        if(debugMode) Debug.Log($"[Jupiter] Fetching quote with maxAccounts={maxAccounts}...");
+        if(debugMode) Debug.Log($"[Jupiter] Fetching versioned transaction quote (maxAccounts={maxAccounts})...");
         
         JObject quote = await GetQuote(url);
         
         if (quote != null)
         {
-            if(debugMode) Debug.Log($"<color=green>[Jupiter] ✅ Quote received successfully</color>");
+            if(debugMode) Debug.Log($"<color=green>[Jupiter] ✅ Versioned transaction quote received</color>");
             return quote;
         }
         
@@ -346,15 +346,7 @@ public class JupiterSwapManager : MonoBehaviour
             }
 
             byte[] bytes = Convert.FromBase64String(txBase64);
-            if(debugMode) Debug.Log($"<b>[Jupiter Debug] Transaction Size: {bytes.Length} bytes</b>");
-
-            // Check size and provide helpful error if too large
-            if (bytes.Length > 1232)
-            {
-                ShowPopup("Transaction Too Large", "Try a smaller amount or different route", Color.red);
-                Debug.LogWarning($"[Jupiter] Transaction is {bytes.Length} bytes (limit: 1232). Try reducing amount or use a different token pair.");
-                return;
-            }
+            if(debugMode) Debug.Log($"<b>[Jupiter Debug] Versioned Transaction Size: {bytes.Length} bytes</b>");
 
             ShowPopup("Confirm Swap", "Check your wallet", Color.yellow);
             await SignAndSendTransaction(txBase64);
@@ -397,14 +389,9 @@ public class JupiterSwapManager : MonoBehaviour
             quoteResponse = quote, 
             userPublicKey = WalletConnector.UserPublicKey.ToString(),
             wrapAndUnwrapSol = true,
-            
-            // 🎯 ZERO FEE: Saves ~15 bytes
             prioritizationFeeLamports = 0,
-            
-            // 🎯 REDUCE ACCOUNT BLOAT
-            useSharedAccounts = false,
-            
-            asLegacyTransaction = true 
+            useSharedAccounts = false
+            // 🎯 NO asLegacyTransaction - this enables versioned transactions
         };
 
         string json = JsonConvert.SerializeObject(reqData);
@@ -437,96 +424,80 @@ public class JupiterSwapManager : MonoBehaviour
     {
         try
         {
-            if(debugMode) Debug.Log($"[Jupiter] Received transaction (base64 length: {txBase64.Length})");
-            
-            // 🎯 CRITICAL FIX: Jupiter returns VERSIONED transactions with Address Lookup Tables
-            // The legacy Transaction.Deserialize() corrupts these transactions
-            // We must sign the raw message bytes directly without deserializing
+            if(debugMode) Debug.Log($"[Jupiter] Received versioned transaction (base64 length: {txBase64.Length})");
             
             if (WalletConnector.PlayerAccount != null) 
             {
-                if(debugMode) Debug.Log("[Jupiter] Signing with local account using raw signature...");
+                if(debugMode) Debug.Log("[Jupiter] Signing versioned transaction with local account...");
                 
                 byte[] txBytes = Convert.FromBase64String(txBase64);
                 
-                // Extract the message to sign (skip the signature placeholder bytes)
-                // Solana transactions have signature(s) at the beginning, then the message
-                // For unsigned tx: [num_signatures (1 byte)][64 zero bytes per sig][message]
+                // 🎯 VERSIONED TRANSACTION PARSING
+                // Versioned transactions start with a version byte (0x80 for v0)
+                int offset = 0;
+                byte versionByte = txBytes[offset++];
                 
-                int numSignaturesOffset = 0;
-                int numSignatures = txBytes[numSignaturesOffset];
-                int messageStart = 1 + (numSignatures * 64); // After signature count and signature placeholders
+                bool isVersioned = (versionByte & 0x80) != 0;
                 
-                // Extract just the message bytes (what needs to be signed)
-                byte[] messageBytes = new byte[txBytes.Length - messageStart];
-                Array.Copy(txBytes, messageStart, messageBytes, 0, messageBytes.Length);
+                if(debugMode) Debug.Log($"[Jupiter] Transaction is {(isVersioned ? "VERSIONED" : "LEGACY")}");
                 
-                if(debugMode) Debug.Log($"[Jupiter] Message size: {messageBytes.Length} bytes, Signatures needed: {numSignatures}");
-                
-                // Sign the message directly
-                byte[] signature = WalletConnector.PlayerAccount.Sign(messageBytes);
-                
-                // Reconstruct transaction: [num_sigs][signature][message]
-                byte[] signedTx = new byte[1 + signature.Length + messageBytes.Length];
-                signedTx[0] = (byte)numSignatures; // Keep original signature count
-                Array.Copy(signature, 0, signedTx, 1, signature.Length);
-                Array.Copy(messageBytes, 0, signedTx, 1 + signature.Length, messageBytes.Length);
-                
-                string signedTxBase64 = Convert.ToBase64String(signedTx);
-                
-                if(debugMode) Debug.Log($"[Jupiter] Signed transaction size: {signedTx.Length} bytes");
-                
-                // Send via RPC
-                using (UnityWebRequest req = new UnityWebRequest(Web3.Rpc.NodeAddress.AbsoluteUri, "POST"))
+                if (isVersioned)
                 {
-                    var rpcRequest = new 
-                    {
-                        jsonrpc = "2.0",
-                        id = UnityEngine.Random.Range(1, 10000),
-                        method = "sendTransaction",
-                        @params = new object[] 
-                        { 
-                            signedTxBase64,
-                            new 
-                            {
-                                encoding = "base64",
-                                skipPreflight = false,
-                                preflightCommitment = "confirmed"
-                            }
-                        }
-                    };
-
-                    string json = JsonConvert.SerializeObject(rpcRequest);
-                    byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
-                    req.uploadHandler = new UploadHandlerRaw(bodyRaw);
-                    req.downloadHandler = new DownloadHandlerBuffer();
-                    req.SetRequestHeader("Content-Type", "application/json");
-
-                    await req.SendWebRequest();
-
-                    if (req.result == UnityWebRequest.Result.Success)
-                    {
-                        var response = JObject.Parse(req.downloadHandler.text);
-                        
-                        if (response["error"] != null)
-                        {
-                            ShowPopup("Failed", "Transaction Error", Color.red);
-                            Debug.LogError($"[Jupiter] TX Failed: {response["error"]}");
-                        }
-                        else
-                        {
-                            string txSignature = response["result"].ToString();
-                            ShowPopup("Success!", "Swap Completed!", Color.green);
-                            if(debugMode) Debug.Log($"[Jupiter] TX Sent: {txSignature}");
-                            await Task.Delay(4000);
-                            RefreshBalances();
-                        }
-                    }
-                    else
-                    {
-                        ShowPopup("Failed", "Network Error", Color.red);
-                        Debug.LogError($"[Jupiter] Request Failed: {req.error}");
-                    }
+                    // For versioned transactions, the structure is:
+                    // [version (1 byte)][num_signatures (compact-u16)][64 zero bytes per sig][message]
+                    
+                    // Read compact-u16 for number of signatures
+                    int numSignatures = ReadCompactU16(txBytes, ref offset);
+                    
+                    // Skip signature placeholders
+                    int messageStart = offset + (numSignatures * 64);
+                    
+                    // Extract message bytes
+                    byte[] messageBytes = new byte[txBytes.Length - messageStart];
+                    Array.Copy(txBytes, messageStart, messageBytes, 0, messageBytes.Length);
+                    
+                    if(debugMode) Debug.Log($"[Jupiter] Versioned TX - Signatures needed: {numSignatures}, Message size: {messageBytes.Length} bytes");
+                    
+                    // Sign the message
+                    byte[] signature = WalletConnector.PlayerAccount.Sign(messageBytes);
+                    
+                    // Reconstruct: [version][num_sigs][signature(s)][message]
+                    byte[] signedTx = new byte[1 + GetCompactU16Size(numSignatures) + (signature.Length * numSignatures) + messageBytes.Length];
+                    int writeOffset = 0;
+                    
+                    signedTx[writeOffset++] = versionByte;
+                    WriteCompactU16(signedTx, ref writeOffset, numSignatures);
+                    Array.Copy(signature, 0, signedTx, writeOffset, signature.Length);
+                    writeOffset += signature.Length;
+                    Array.Copy(messageBytes, 0, signedTx, writeOffset, messageBytes.Length);
+                    
+                    string signedTxBase64 = Convert.ToBase64String(signedTx);
+                    
+                    if(debugMode) Debug.Log($"[Jupiter] Signed versioned transaction: {signedTx.Length} bytes");
+                    
+                    await SendSignedTransaction(signedTxBase64);
+                }
+                else
+                {
+                    // Legacy transaction handling (same as before)
+                    int numSignatures = txBytes[0];
+                    int messageStart = 1 + (numSignatures * 64);
+                    
+                    byte[] messageBytes = new byte[txBytes.Length - messageStart];
+                    Array.Copy(txBytes, messageStart, messageBytes, 0, messageBytes.Length);
+                    
+                    byte[] signature = WalletConnector.PlayerAccount.Sign(messageBytes);
+                    
+                    byte[] signedTx = new byte[1 + signature.Length + messageBytes.Length];
+                    signedTx[0] = (byte)numSignatures;
+                    Array.Copy(signature, 0, signedTx, 1, signature.Length);
+                    Array.Copy(messageBytes, 0, signedTx, 1 + signature.Length, messageBytes.Length);
+                    
+                    string signedTxBase64 = Convert.ToBase64String(signedTx);
+                    
+                    if(debugMode) Debug.Log($"[Jupiter] Signed legacy transaction: {signedTx.Length} bytes");
+                    
+                    await SendSignedTransaction(signedTxBase64);
                 }
             } 
             else 
@@ -556,6 +527,109 @@ public class JupiterSwapManager : MonoBehaviour
         {
             ShowPopup("Error", "Signing Failed", Color.red);
             Debug.LogError($"[Jupiter] Signing Error: {ex.Message}\n{ex.StackTrace}");
+        }
+    }
+
+    private async Task SendSignedTransaction(string signedTxBase64)
+    {
+        using (UnityWebRequest req = new UnityWebRequest(Web3.Rpc.NodeAddress.AbsoluteUri, "POST"))
+        {
+            var rpcRequest = new 
+            {
+                jsonrpc = "2.0",
+                id = UnityEngine.Random.Range(1, 10000),
+                method = "sendTransaction",
+                @params = new object[] 
+                { 
+                    signedTxBase64,
+                    new 
+                    {
+                        encoding = "base64",
+                        skipPreflight = false,
+                        preflightCommitment = "confirmed"
+                    }
+                }
+            };
+
+            string json = JsonConvert.SerializeObject(rpcRequest);
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
+            req.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", "application/json");
+
+            await req.SendWebRequest();
+
+            if (req.result == UnityWebRequest.Result.Success)
+            {
+                var response = JObject.Parse(req.downloadHandler.text);
+                
+                if (response["error"] != null)
+                {
+                    ShowPopup("Failed", "Transaction Error", Color.red);
+                    Debug.LogError($"[Jupiter] TX Failed: {response["error"]}");
+                }
+                else
+                {
+                    string txSignature = response["result"].ToString();
+                    ShowPopup("Success!", "Swap Completed!", Color.green);
+                    if(debugMode) Debug.Log($"[Jupiter] TX Sent: {txSignature}");
+                    await Task.Delay(4000);
+                    RefreshBalances();
+                }
+            }
+            else
+            {
+                ShowPopup("Failed", "Network Error", Color.red);
+                Debug.LogError($"[Jupiter] Request Failed: {req.error}");
+            }
+        }
+    }
+
+    // 🎯 COMPACT-U16 ENCODING UTILITIES (for versioned transactions)
+    private int ReadCompactU16(byte[] data, ref int offset)
+    {
+        byte firstByte = data[offset++];
+        
+        if (firstByte <= 0x7f)
+        {
+            return firstByte;
+        }
+        else if (firstByte <= 0xbf)
+        {
+            int secondByte = data[offset++];
+            return ((firstByte & 0x3f) << 8) | secondByte;
+        }
+        else
+        {
+            int secondByte = data[offset++];
+            int thirdByte = data[offset++];
+            return ((firstByte & 0x1f) << 16) | (secondByte << 8) | thirdByte;
+        }
+    }
+
+    private int GetCompactU16Size(int value)
+    {
+        if (value <= 0x7f) return 1;
+        if (value <= 0x3fff) return 2;
+        return 3;
+    }
+
+    private void WriteCompactU16(byte[] data, ref int offset, int value)
+    {
+        if (value <= 0x7f)
+        {
+            data[offset++] = (byte)value;
+        }
+        else if (value <= 0x3fff)
+        {
+            data[offset++] = (byte)(0x80 | (value >> 8));
+            data[offset++] = (byte)(value & 0xff);
+        }
+        else
+        {
+            data[offset++] = (byte)(0xc0 | (value >> 16));
+            data[offset++] = (byte)((value >> 8) & 0xff);
+            data[offset++] = (byte)(value & 0xff);
         }
     }
     
