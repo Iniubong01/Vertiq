@@ -10,21 +10,28 @@ using Solana.Unity.Wallet;
 using Solana.Unity.Rpc.Models;
 using Solana.Unity.Rpc.Core.Http;
 using Solana.Unity.Rpc.Types;
+using Solana.Unity.Programs; 
 using System.Text;
 using TMPro;
 using UnityEngine.UI;
+using Reown.AppKit.Unity;
 
 public class JupiterSwapManager : MonoBehaviour
 {
     [Header("Jupiter Configuration")]
     public string jupiterBaseUrl = "https://api.jup.ag"; 
-    public string jupiterApiKey = "YOUR_KEY_HERE"; 
+    public string jupiterApiKey = ""; 
 
     [Header("Token Configuration")]
     public string wrappedSolMint = "So11111111111111111111111111111111111111112";
     public string usdcMint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"; 
     public string playTokenMint = "PLAYs3GSSadH2q2JLS7djp7yzeT75NK78XgrE5YLrfq"; 
     
+    [Header("Fee Configuration")]
+    public string platformFeeWallet = ""; 
+    [Range(0f, 10f)]
+    public float platformFeePercent = 0.75f; 
+
     [Header("UI References")]
     public TMP_InputField inputAmountField;
     public TMP_InputField outputAmountField;
@@ -32,10 +39,17 @@ public class JupiterSwapManager : MonoBehaviour
     public TMP_Dropdown outputTokenDropdown;
     public TMP_Text inputBalanceText;
     public TMP_Text outputBalanceText;
+
+    public GameObject quoteInfoContainer; 
+
+    [Header("Quote Details UI")]
     public TMP_Text exchangeRateText;
     public TMP_Text priceImpactText;
     public TMP_Text minimumReceivedText;
-    public TMP_Text networkFeeText;
+    public TMP_Text feeText; 
+    public TMP_Text inputUsdText;
+    public TMP_Text outputUsdText;
+
     public Button swapButton;
     public Button maxButton;
     public Button reverseButton;
@@ -43,7 +57,8 @@ public class JupiterSwapManager : MonoBehaviour
     
     [Header("Swap Settings")]
     [Range(0, 1000)]
-    public float slippageBps = 250; // 2.5% standard slippage
+    public float slippageBps = 250; 
+    public float minSwapAmount = 0.001f; 
     public bool debugMode = true;
 
     private JObject currentQuote; 
@@ -53,18 +68,28 @@ public class JupiterSwapManager : MonoBehaviour
     private void Start()
     {
         jupiterBaseUrl = jupiterBaseUrl.Trim().TrimEnd('/');
-        jupiterApiKey = jupiterApiKey.Trim();
+        if (quoteInfoContainer != null) quoteInfoContainer.SetActive(false);
 
         InitializeEmptyBalances();
         SetupUI();
-        InvokeRepeating(nameof(RefreshBalances), 1f, 15f);
+        StartCoroutine(WaitForWalletAndRefresh());
+    }
+    
+    private System.Collections.IEnumerator WaitForWalletAndRefresh()
+    {
+        while (WalletConnector.UserPublicKey == null)
+        {
+            yield return new WaitForSeconds(0.5f);
+        }
+        RefreshBalances();
+        InvokeRepeating(nameof(RefreshBalances), 15f, 15f);
     }
 
     private void InitializeEmptyBalances()
     {
         tokenBalances["SOL"] = new TokenBalance { mint = wrappedSolMint, balance = 0, decimals = 9 };
+        tokenBalances["PLAY"] = new TokenBalance { mint = playTokenMint, balance = 0, decimals = 9 };
         tokenBalances["USDC"] = new TokenBalance { mint = usdcMint, balance = 0, decimals = 6 };
-        tokenBalances["$PLAY"] = new TokenBalance { mint = playTokenMint, balance = 0, decimals = 9 };
     }
 
     private void SetupUI()
@@ -81,20 +106,22 @@ public class JupiterSwapManager : MonoBehaviour
 
     private void SetupTokenDropdowns()
     {
-        var options = new List<string> { "SOL", "USDC", "$PLAY" };
+        var options = new List<string> { "SOL", "PLAY", "USDC" };
         if (inputTokenDropdown != null) { inputTokenDropdown.ClearOptions(); inputTokenDropdown.AddOptions(options); inputTokenDropdown.value = 0; }
         if (outputTokenDropdown != null) { outputTokenDropdown.ClearOptions(); outputTokenDropdown.AddOptions(options); outputTokenDropdown.value = 1; }
     }
 
     #region BALANCE MANAGEMENT
-
     public async void RefreshBalances()
     {
         if (WalletConnector.UserPublicKey == null) return;
+        
         await UpdateTokenBalance(wrappedSolMint, "SOL");
-        await UpdateTokenBalance(usdcMint, "USDC");
-        if (!string.IsNullOrEmpty(playTokenMint)) await UpdateTokenBalance(playTokenMint, "$PLAY");
+        await UpdateTokenBalance(playTokenMint, "PLAY");
+        if (!string.IsNullOrEmpty(usdcMint)) await UpdateTokenBalance(usdcMint, "USDC");
+        
         UpdateBalanceDisplays();
+        UpdateButtonState(); 
     }
 
     private async Task UpdateTokenBalance(string mint, string symbol)
@@ -120,6 +147,10 @@ public class JupiterSwapManager : MonoBehaviour
                     int decimals = tokenAccount.Account.Data.Parsed.Info.TokenAmount.Decimals;
                     tokenBalances[symbol] = new TokenBalance { mint = mint, balance = balance, decimals = decimals };
                 }
+                else
+                {
+                     tokenBalances[symbol] = new TokenBalance { mint = mint, balance = 0, decimals = 9 };
+                }
             }
         }
         catch { }
@@ -131,40 +162,48 @@ public class JupiterSwapManager : MonoBehaviour
         string outputToken = GetSelectedToken(outputTokenDropdown);
 
         if (inputBalanceText != null)
-            inputBalanceText.text = tokenBalances.ContainsKey(inputToken) ? 
-                $"Balance: {tokenBalances[inputToken].balance:F4} {inputToken}" : "--";
+            inputBalanceText.text = tokenBalances.ContainsKey(inputToken) ? $"{tokenBalances[inputToken].balance:0.####} " : "--";
 
         if (outputBalanceText != null)
-            outputBalanceText.text = tokenBalances.ContainsKey(outputToken) ? 
-                $"Balance: {tokenBalances[outputToken].balance:F4} {outputToken}" : "--";
+            outputBalanceText.text = tokenBalances.ContainsKey(outputToken) ? $"{tokenBalances[outputToken].balance:0.####} " : "--";
     }
-
     #endregion
 
     #region UI INTERACTIONS
-
     private void OnInputAmountChanged(string value)
     {
+        UpdateButtonState(); 
         if (isUpdatingQuote) return;
-        if (float.TryParse(value, out float amount) && amount > 0) UpdateQuote();
-        else ClearQuoteInfo();
+        if (IsValidInput(out float amount)) UpdateQuote();
+        else ClearQuoteInfo(); 
     }
 
     private void OnTokenSelectionChanged()
     {
         UpdateBalanceDisplays();
-        if (!string.IsNullOrEmpty(inputAmountField.text) && float.TryParse(inputAmountField.text, out float amount) && amount > 0) UpdateQuote();
+        UpdateButtonState();
+        if (IsValidInput(out float amount)) UpdateQuote();
         else ClearQuoteInfo();
     }
 
     private void SetMaxAmount()
     {
         string inputToken = GetSelectedToken(inputTokenDropdown);
-        if (tokenBalances.ContainsKey(inputToken))
+        if (tokenBalances.TryGetValue(inputToken, out TokenBalance tokenData))
         {
-            double maxAmount = tokenBalances[inputToken].balance;
-            if (inputToken == "SOL") maxAmount = Math.Max(0, maxAmount - 0.015);
-            inputAmountField.text = maxAmount.ToString("F6");
+            double maxAmount = tokenData.balance;
+            
+            // Safety Buffer for SOL
+            if (inputToken == "SOL") 
+            {
+                double gasBuffer = 0.003; 
+                if (maxAmount <= gasBuffer) maxAmount = 0;
+                else maxAmount = maxAmount - gasBuffer;
+            }
+
+            string format = "0." + new string('#', tokenData.decimals);
+            inputAmountField.text = maxAmount.ToString(format);
+            OnInputAmountChanged(inputAmountField.text);
         }
     }
 
@@ -181,10 +220,39 @@ public class JupiterSwapManager : MonoBehaviour
         }
     }
 
+    private bool IsValidInput(out float amount)
+    {
+        amount = 0;
+        if (string.IsNullOrEmpty(inputAmountField.text)) return false;
+        if (!float.TryParse(inputAmountField.text, out amount)) return false;
+        if (amount <= 0) return false;
+
+        string inputToken = GetSelectedToken(inputTokenDropdown);
+        if (amount < minSwapAmount) return false;
+        if (tokenBalances.ContainsKey(inputToken) && amount > tokenBalances[inputToken].balance) return false;
+
+        return true;
+    }
+
+    private void UpdateButtonState()
+    {
+        if (swapButton == null) return;
+        TMP_Text btnText = swapButton.GetComponentInChildren<TMP_Text>();
+        if (btnText == null) return;
+
+        string inputToken = GetSelectedToken(inputTokenDropdown);
+        float amount = 0;
+        bool hasInput = float.TryParse(inputAmountField.text, out amount);
+
+        if (!hasInput || amount <= 0) { btnText.text = "Enter Amount"; swapButton.interactable = false; return; }
+        if (amount < minSwapAmount) { btnText.text = $"Minimum {minSwapAmount}"; swapButton.interactable = false; return; }
+        if (tokenBalances.ContainsKey(inputToken) && amount > tokenBalances[inputToken].balance) { btnText.text = "Insufficient Funds"; swapButton.interactable = false; return; }
+
+        btnText.text = "Swap";
+    }
     #endregion
 
     #region QUOTE & SWAP
-
     private async void UpdateQuote()
     {
         if (isUpdatingQuote) return;
@@ -197,8 +265,7 @@ public class JupiterSwapManager : MonoBehaviour
             
             if (inputToken == outputToken || !float.TryParse(inputAmountField.text, out float amount) || amount <= 0)
             {
-                isUpdatingQuote = false; 
-                return;
+                isUpdatingQuote = false; ClearQuoteInfo(); return;
             }
 
             string inputMint = GetTokenMint(inputToken);
@@ -208,19 +275,12 @@ public class JupiterSwapManager : MonoBehaviour
             ulong amountRaw = (ulong)(amount * Math.Pow(10, decimals));
 
             if(debugMode) Debug.Log($"[Jupiter] Fetching Quote: {amount} {inputToken} -> {outputToken}");
-
-            // 🎯 METHOD 3: Use versioned transactions (modern approach)
             currentQuote = await GetQuoteWithRetry(inputMint, outputMint, amountRaw);
 
-            if (currentQuote != null)
-            {
-                LogRouteDetails(currentQuote);
-                DisplayQuoteInfo();
-            }
+            if (currentQuote != null) DisplayQuoteInfo();
             else 
             {
-                Debug.LogError("[Jupiter] No route found!");
-                ShowPopup("No Route", "Try different tokens or amount", Color.red);
+                ShowPopup("No Route", "Try different tokens", Color.red);
                 ClearQuoteInfo();
             }
         }
@@ -232,101 +292,103 @@ public class JupiterSwapManager : MonoBehaviour
         finally { isUpdatingQuote = false; }
     }
 
-    // 🎯 METHOD 3: Use Versioned Transactions - supports up to ~1400 bytes with Address Lookup Tables
     private async Task<JObject> GetQuoteWithRetry(string inputMint, string outputMint, ulong amountRaw)
     {
-        // Use versioned transactions (no asLegacyTransaction flag)
-        // This allows use of Address Lookup Tables for more complex routes
-        int maxAccounts = 64;
-        
-        string url = $"{jupiterBaseUrl}/swap/v1/quote?inputMint={inputMint}&outputMint={outputMint}&amount={amountRaw}&slippageBps={slippageBps}&maxAccounts={maxAccounts}";
-        
-        if(debugMode) Debug.Log($"[Jupiter] Fetching versioned transaction quote (maxAccounts={maxAccounts})...");
-        
-        JObject quote = await GetQuote(url);
-        
-        if (quote != null)
-        {
-            if(debugMode) Debug.Log($"<color=green>[Jupiter] ✅ Versioned transaction quote received</color>");
-            return quote;
-        }
-        
-        Debug.LogError("[Jupiter] No route found!");
-        return null;
+        bool isValidFeeWallet = !string.IsNullOrEmpty(platformFeeWallet) && platformFeeWallet.Length > 30;
+        int feeBps = isValidFeeWallet ? Mathf.RoundToInt(platformFeePercent * 100) : 0;
+        string feeParam = feeBps > 0 ? $"&platformFeeBps={feeBps}" : "";
+
+        string url = $"{jupiterBaseUrl}/swap/v1/quote?inputMint={inputMint}&outputMint={outputMint}&amount={amountRaw}&slippageBps={slippageBps}{feeParam}";
+        return await GetQuote(url);
     }
 
-    private void LogRouteDetails(JObject quote)
-    {
-        try 
-        {
-            JArray routePlan = (JArray)quote["routePlan"];
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("<b>[Jupiter Debug] Route Plan:</b>");
-            int hopCount = 0;
-            foreach (var hop in routePlan)
-            {
-                hopCount++;
-                string label = hop["swapInfo"]["label"].ToString();
-                string ammKey = hop["swapInfo"]["ammKey"].ToString();
-                sb.AppendLine($"  Hop {hopCount}: <b>{label}</b> (AMM: {ammKey.Substring(0, 5)}...)");
-            }
-            Debug.Log(sb.ToString());
-        }
-        catch { }
-    }
-
+    // [RESTORED] Full Quote Display Logic
     private void DisplayQuoteInfo()
     {
         if (currentQuote == null) return;
-
         try
         {
+            if (quoteInfoContainer != null) quoteInfoContainer.SetActive(true);
             if (swapButton != null) swapButton.interactable = true;
 
             string inputToken = GetSelectedToken(inputTokenDropdown);
             string outputToken = GetSelectedToken(outputTokenDropdown);
-            
+
+            // 1. Get Decimals
             int inDecimals = tokenBalances.ContainsKey(inputToken) ? tokenBalances[inputToken].decimals : 9;
             int outDecimals = tokenBalances.ContainsKey(outputToken) ? tokenBalances[outputToken].decimals : 9;
 
+            // 2. Parse Amounts
             double inAmount = double.Parse(currentQuote["inAmount"].ToString()) / Math.Pow(10, inDecimals);
             double outAmount = double.Parse(currentQuote["outAmount"].ToString()) / Math.Pow(10, outDecimals);
             double minReceived = double.Parse(currentQuote["otherAmountThreshold"].ToString()) / Math.Pow(10, outDecimals);
 
+            // 3. Update Output Field
             if (outputAmountField != null) outputAmountField.text = outAmount.ToString($"F{Math.Min(6, outDecimals)}");
 
+            // 4. Update Exchange Rate
             if (exchangeRateText != null && inAmount > 0)
             {
                 double rate = outAmount / inAmount;
                 exchangeRateText.text = $"1 {inputToken} ≈ {rate:F4} {outputToken}";
             }
 
+            // 5. Update Price Impact (with Color)
+            double priceImpact = 0;
             if (priceImpactText != null && currentQuote["priceImpactPct"] != null)
             {
-                double impact = double.Parse(currentQuote["priceImpactPct"].ToString()) * 100;
-                priceImpactText.text = $"{impact:F2}%";
-                if (impact < 0.1) priceImpactText.color = Color.green;
-                else if (impact < 1.0) priceImpactText.color = new Color(1f, 0.64f, 0f);
+                priceImpact = double.Parse(currentQuote["priceImpactPct"].ToString());
+                double displayImpact = priceImpact * 100;
+                priceImpactText.text = $"{displayImpact:F2}%";
+                
+                if (displayImpact < 0.1) priceImpactText.color = Color.green;
+                else if (displayImpact < 1.0) priceImpactText.color = new Color(1f, 0.64f, 0f); // Orange
                 else priceImpactText.color = Color.red;
             }
 
+            // 6. Update Min Received
             if (minimumReceivedText != null) minimumReceivedText.text = $"{minReceived:F4} {outputToken}";
-            if (networkFeeText != null) networkFeeText.text = "~0.000005 SOL (Auto)";
+
+            // 7. Update Fee
+            if (feeText != null) feeText.text = $"{platformFeePercent}%";
+
+            // 8. Update USD Values
+            if (currentQuote["swapUsdValue"] != null)
+            {
+                string usdValStr = currentQuote["swapUsdValue"].ToString();
+                if (double.TryParse(usdValStr, out double usdVal))
+                {
+                    if (inputUsdText != null) inputUsdText.text = $"≈ ${usdVal:F2}";
+                    if (outputUsdText != null) 
+                    {
+                        // Estimate output USD by reducing price impact
+                        double outputUsdVal = usdVal * (1.0 - priceImpact);
+                        outputUsdText.text = $"≈ ${outputUsdVal:F2}";
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[Jupiter] UI Error: {ex.Message}");
+            Debug.LogError($"[Jupiter] Display Error: {ex.Message}");
         }
     }
 
+    // [RESTORED] Clears all UI elements
     private void ClearQuoteInfo()
     {
+        if (quoteInfoContainer != null) quoteInfoContainer.SetActive(false);
         if (outputAmountField != null) outputAmountField.text = "";
+        
         if (exchangeRateText != null) exchangeRateText.text = "--";
         if (priceImpactText != null) priceImpactText.text = "--";
         if (minimumReceivedText != null) minimumReceivedText.text = "--";
-        if (networkFeeText != null) networkFeeText.text = "--";
+        if (feeText != null) feeText.text = "--";
+        if (inputUsdText != null) inputUsdText.text = "";
+        if (outputUsdText != null) outputUsdText.text = "";
+
         if (swapButton != null) swapButton.interactable = false;
+        UpdateButtonState(); 
     }
 
     private async void ExecuteSwap()
@@ -342,24 +404,29 @@ public class JupiterSwapManager : MonoBehaviour
             if (string.IsNullOrEmpty(txBase64)) 
             { 
                 ShowPopup("Error", "Failed to create transaction", Color.red); 
+                swapButton.interactable = true;
                 return; 
             }
 
-            byte[] bytes = Convert.FromBase64String(txBase64);
-            if(debugMode) Debug.Log($"<b>[Jupiter Debug] Versioned Transaction Size: {bytes.Length} bytes</b>");
-
-            ShowPopup("Confirm Swap", "Check your wallet", Color.yellow);
+            ShowPopup("Confirm Swap", "Processing...", Color.yellow);
             await SignAndSendTransaction(txBase64);
-            
-            await Task.Delay(2000);
-            RefreshBalances();
         }
         catch (Exception ex) 
         { 
             ShowPopup("Failed", ex.Message, Color.red); 
-            Debug.LogError($"[Jupiter] Swap execution error: {ex.Message}");
+            swapButton.interactable = true;
         }
-        finally { swapButton.interactable = true; }
+    }
+
+    private async void HandleSwapSuccess(string signature)
+    {
+        ShowPopup("Success!", "Swap Completed!", Color.green);
+        if(debugMode) Debug.Log($"[Jupiter] TX Sent: {signature}");
+        if (inputAmountField != null) inputAmountField.text = "";
+        ClearQuoteInfo();
+        await Task.Delay(2000);
+        RefreshBalances();
+        swapButton.interactable = true;
     }
 
     private async Task<JObject> GetQuote(string url)
@@ -367,41 +434,47 @@ public class JupiterSwapManager : MonoBehaviour
         using (UnityWebRequest req = UnityWebRequest.Get(url))
         {
             if(!string.IsNullOrEmpty(jupiterApiKey)) req.SetRequestHeader("x-api-key", jupiterApiKey);
-
             await req.SendWebRequest();
-            
-            if (req.result == UnityWebRequest.Result.Success)
-            {
-                return JObject.Parse(req.downloadHandler.text); 
-            }
-            else
-            {
-                if(debugMode) Debug.LogWarning($"[Jupiter] API Response: {req.error}");
-                return null;
-            }
+            if (req.result == UnityWebRequest.Result.Success) return JObject.Parse(req.downloadHandler.text); 
+            else return null;
         }
     }
 
     private async Task<string> GetSwapTransaction(JObject quote)
     {
+        string feeAccount = null;
+        if (!string.IsNullOrEmpty(platformFeeWallet) && platformFeePercent > 0)
+        {
+            try 
+            {
+                string outputToken = GetSelectedToken(outputTokenDropdown);
+                string outputMint = GetTokenMint(outputToken);
+                PublicKey feeWalletKey = new PublicKey(platformFeeWallet);
+                PublicKey mintKey = new PublicKey(outputMint);
+                PublicKey ata = AssociatedTokenAccountProgram.DeriveAssociatedTokenAccount(feeWalletKey, mintKey);
+                feeAccount = ata.ToString();
+            }
+            catch { }
+        }
+
+        // Fixed priority fee (0.00005 SOL) to prevent low-balance errors
         var reqData = new 
         {
             quoteResponse = quote, 
             userPublicKey = WalletConnector.UserPublicKey.ToString(),
             wrapAndUnwrapSol = true,
-            prioritizationFeeLamports = 0,
-            useSharedAccounts = false
-            // 🎯 NO asLegacyTransaction - this enables versioned transactions
+            dynamicComputeUnitLimit = true, 
+            prioritizationFeeLamports = 50000, 
+            feeAccount = feeAccount 
         };
 
-        string json = JsonConvert.SerializeObject(reqData);
+        string json = JsonConvert.SerializeObject(reqData, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
         
         using (UnityWebRequest req = new UnityWebRequest($"{jupiterBaseUrl}/swap/v1/swap", "POST"))
         {
             byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
             req.uploadHandler = new UploadHandlerRaw(bodyRaw);
             req.downloadHandler = new DownloadHandlerBuffer();
-            
             req.SetRequestHeader("Content-Type", "application/json");
             if(!string.IsNullOrEmpty(jupiterApiKey)) req.SetRequestHeader("x-api-key", jupiterApiKey);
 
@@ -414,7 +487,7 @@ public class JupiterSwapManager : MonoBehaviour
             }
             else
             {
-                Debug.LogError($"[Jupiter] Swap Error: {req.error} - {req.downloadHandler.text}");
+                Debug.LogError($"[Jupiter] Swap Error: {req.error}");
                 return null;
             }
         }
@@ -424,109 +497,67 @@ public class JupiterSwapManager : MonoBehaviour
     {
         try
         {
-            if(debugMode) Debug.Log($"[Jupiter] Received versioned transaction (base64 length: {txBase64.Length})");
-            
+            // PATH A: EDITOR
             if (WalletConnector.PlayerAccount != null) 
             {
-                if(debugMode) Debug.Log("[Jupiter] Signing versioned transaction with local account...");
-                
                 byte[] txBytes = Convert.FromBase64String(txBase64);
-                
-                // 🎯 VERSIONED TRANSACTION PARSING
-                // Versioned transactions start with a version byte (0x80 for v0)
+                // Editor parsing logic
                 int offset = 0;
                 byte versionByte = txBytes[offset++];
-                
                 bool isVersioned = (versionByte & 0x80) != 0;
-                
-                if(debugMode) Debug.Log($"[Jupiter] Transaction is {(isVersioned ? "VERSIONED" : "LEGACY")}");
                 
                 if (isVersioned)
                 {
-                    // For versioned transactions, the structure is:
-                    // [version (1 byte)][num_signatures (compact-u16)][64 zero bytes per sig][message]
-                    
-                    // Read compact-u16 for number of signatures
                     int numSignatures = ReadCompactU16(txBytes, ref offset);
-                    
-                    // Skip signature placeholders
                     int messageStart = offset + (numSignatures * 64);
-                    
-                    // Extract message bytes
                     byte[] messageBytes = new byte[txBytes.Length - messageStart];
                     Array.Copy(txBytes, messageStart, messageBytes, 0, messageBytes.Length);
-                    
-                    if(debugMode) Debug.Log($"[Jupiter] Versioned TX - Signatures needed: {numSignatures}, Message size: {messageBytes.Length} bytes");
-                    
-                    // Sign the message
                     byte[] signature = WalletConnector.PlayerAccount.Sign(messageBytes);
-                    
-                    // Reconstruct: [version][num_sigs][signature(s)][message]
                     byte[] signedTx = new byte[1 + GetCompactU16Size(numSignatures) + (signature.Length * numSignatures) + messageBytes.Length];
                     int writeOffset = 0;
-                    
                     signedTx[writeOffset++] = versionByte;
                     WriteCompactU16(signedTx, ref writeOffset, numSignatures);
                     Array.Copy(signature, 0, signedTx, writeOffset, signature.Length);
                     writeOffset += signature.Length;
                     Array.Copy(messageBytes, 0, signedTx, writeOffset, messageBytes.Length);
-                    
-                    string signedTxBase64 = Convert.ToBase64String(signedTx);
-                    
-                    if(debugMode) Debug.Log($"[Jupiter] Signed versioned transaction: {signedTx.Length} bytes");
-                    
-                    await SendSignedTransaction(signedTxBase64);
+                    await SendSignedTransaction(Convert.ToBase64String(signedTx));
                 }
                 else
                 {
-                    // Legacy transaction handling (same as before)
                     int numSignatures = txBytes[0];
                     int messageStart = 1 + (numSignatures * 64);
-                    
                     byte[] messageBytes = new byte[txBytes.Length - messageStart];
                     Array.Copy(txBytes, messageStart, messageBytes, 0, messageBytes.Length);
-                    
                     byte[] signature = WalletConnector.PlayerAccount.Sign(messageBytes);
-                    
                     byte[] signedTx = new byte[1 + signature.Length + messageBytes.Length];
                     signedTx[0] = (byte)numSignatures;
                     Array.Copy(signature, 0, signedTx, 1, signature.Length);
                     Array.Copy(messageBytes, 0, signedTx, 1 + signature.Length, messageBytes.Length);
-                    
-                    string signedTxBase64 = Convert.ToBase64String(signedTx);
-                    
-                    if(debugMode) Debug.Log($"[Jupiter] Signed legacy transaction: {signedTx.Length} bytes");
-                    
-                    await SendSignedTransaction(signedTxBase64);
+                    await SendSignedTransaction(Convert.ToBase64String(signedTx));
                 }
             } 
-            else 
+            // PATH B: ANDROID
+            else if (AppKit.IsInitialized)
             {
-                if(debugMode) Debug.Log("[Jupiter] Signing with external wallet...");
-                
-                // For external wallets, let the wallet handle it
-                byte[] txBytes = Convert.FromBase64String(txBase64);
-                var tx = Transaction.Deserialize(txBytes);
-                var res = await Web3.Wallet.SignAndSendTransaction(tx);
-
-                if (res.WasSuccessful) 
+                ShowPopup("Wallet", "Please sign in wallet...", Color.yellow);
+                var signResponse = await AppKit.Solana.SignTransactionAsync(txBase64);
+                if (signResponse != null && !string.IsNullOrEmpty(signResponse.TransactionBase64))
                 {
-                    ShowPopup("Success!", "Swap Completed!", Color.green);
-                    if(debugMode) Debug.Log($"[Jupiter] TX Sent: {res.Result}");
-                    await Task.Delay(4000);
-                    RefreshBalances();
+                    ShowPopup("Processing", "Finalizing swap...", Color.yellow);
+                    await SendSignedTransaction(signResponse.TransactionBase64);
                 }
-                else 
+                else
                 {
-                    ShowPopup("Failed", $"RPC Error: {res.Reason}", Color.red);
-                    Debug.LogError($"[Jupiter] TX Failed: {res.RawRpcResponse}");
+                    ShowPopup("Cancelled", "Swap cancelled", Color.red);
+                    swapButton.interactable = true;
                 }
             }
         }
         catch (Exception ex)
         {
             ShowPopup("Error", "Signing Failed", Color.red);
-            Debug.LogError($"[Jupiter] Signing Error: {ex.Message}\n{ex.StackTrace}");
+            swapButton.interactable = true;
+            Debug.LogError($"[Jupiter] Sign Error: {ex.Message}");
         }
     }
 
@@ -534,23 +565,7 @@ public class JupiterSwapManager : MonoBehaviour
     {
         using (UnityWebRequest req = new UnityWebRequest(Web3.Rpc.NodeAddress.AbsoluteUri, "POST"))
         {
-            var rpcRequest = new 
-            {
-                jsonrpc = "2.0",
-                id = UnityEngine.Random.Range(1, 10000),
-                method = "sendTransaction",
-                @params = new object[] 
-                { 
-                    signedTxBase64,
-                    new 
-                    {
-                        encoding = "base64",
-                        skipPreflight = false,
-                        preflightCommitment = "confirmed"
-                    }
-                }
-            };
-
+            var rpcRequest = new { jsonrpc = "2.0", id = 1, method = "sendTransaction", @params = new object[] { signedTxBase64, new { encoding = "base64", skipPreflight = false } } };
             string json = JsonConvert.SerializeObject(rpcRequest);
             byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
             req.uploadHandler = new UploadHandlerRaw(bodyRaw);
@@ -561,85 +576,33 @@ public class JupiterSwapManager : MonoBehaviour
 
             if (req.result == UnityWebRequest.Result.Success)
             {
-                var response = JObject.Parse(req.downloadHandler.text);
-                
-                if (response["error"] != null)
-                {
-                    ShowPopup("Failed", "Transaction Error", Color.red);
-                    Debug.LogError($"[Jupiter] TX Failed: {response["error"]}");
-                }
-                else
-                {
-                    string txSignature = response["result"].ToString();
-                    ShowPopup("Success!", "Swap Completed!", Color.green);
-                    if(debugMode) Debug.Log($"[Jupiter] TX Sent: {txSignature}");
-                    await Task.Delay(4000);
-                    RefreshBalances();
-                }
+                 var response = JObject.Parse(req.downloadHandler.text);
+                 if (response["error"] == null) HandleSwapSuccess(response["result"].ToString());
+                 else 
+                 {
+                     ShowPopup("Failed", "Transaction Error", Color.red);
+                     Debug.LogError($"RPC Error: {response["error"]}");
+                     swapButton.interactable = true;
+                 }
             }
-            else
+            else 
             {
                 ShowPopup("Failed", "Network Error", Color.red);
-                Debug.LogError($"[Jupiter] Request Failed: {req.error}");
+                swapButton.interactable = true;
             }
         }
     }
-
-    // 🎯 COMPACT-U16 ENCODING UTILITIES (for versioned transactions)
-    private int ReadCompactU16(byte[] data, ref int offset)
-    {
-        byte firstByte = data[offset++];
-        
-        if (firstByte <= 0x7f)
-        {
-            return firstByte;
-        }
-        else if (firstByte <= 0xbf)
-        {
-            int secondByte = data[offset++];
-            return ((firstByte & 0x3f) << 8) | secondByte;
-        }
-        else
-        {
-            int secondByte = data[offset++];
-            int thirdByte = data[offset++];
-            return ((firstByte & 0x1f) << 16) | (secondByte << 8) | thirdByte;
-        }
-    }
-
-    private int GetCompactU16Size(int value)
-    {
-        if (value <= 0x7f) return 1;
-        if (value <= 0x3fff) return 2;
-        return 3;
-    }
-
-    private void WriteCompactU16(byte[] data, ref int offset, int value)
-    {
-        if (value <= 0x7f)
-        {
-            data[offset++] = (byte)value;
-        }
-        else if (value <= 0x3fff)
-        {
-            data[offset++] = (byte)(0x80 | (value >> 8));
-            data[offset++] = (byte)(value & 0xff);
-        }
-        else
-        {
-            data[offset++] = (byte)(0xc0 | (value >> 16));
-            data[offset++] = (byte)((value >> 8) & 0xff);
-            data[offset++] = (byte)(value & 0xff);
-        }
-    }
-    
     #endregion
 
-    #region HELPERS & CLASSES
+    // Binary Helpers
+    private int ReadCompactU16(byte[] data, ref int offset) { byte first = data[offset++]; if (first <= 0x7f) return first; if (first <= 0xbf) return ((first & 0x3f) << 8) | data[offset++]; return ((first & 0x1f) << 16) | (data[offset++] << 8) | data[offset++]; }
+    private int GetCompactU16Size(int val) { if (val <= 0x7f) return 1; if (val <= 0x3fff) return 2; return 3; }
+    private void WriteCompactU16(byte[] data, ref int offset, int val) { if (val <= 0x7f) data[offset++] = (byte)val; else if (val <= 0x3fff) { data[offset++] = (byte)(0x80 | (val >> 8)); data[offset++] = (byte)(val & 0xff); } else { data[offset++] = (byte)(0xc0 | (val >> 16)); data[offset++] = (byte)((val >> 8) & 0xff); data[offset++] = (byte)(val & 0xff); } }
+
+    #region HELPERS
     private string GetSelectedToken(TMP_Dropdown d) => d == null ? "SOL" : d.options[d.value].text;
     private string GetTokenMint(string t) => t == "SOL" ? wrappedSolMint : (t == "USDC" ? usdcMint : playTokenMint);
     private void ShowPopup(string t, string m, Color c) { if (notificationPopup != null) notificationPopup.Show(t, m, c); }
-
     [Serializable] public class TokenBalance { public string mint; public double balance; public int decimals; }
     #endregion
 }

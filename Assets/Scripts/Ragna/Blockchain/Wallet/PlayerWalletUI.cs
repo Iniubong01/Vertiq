@@ -52,8 +52,8 @@ public class PlayerWalletUI : MonoBehaviour
             {
                 double solBalance = (double)balanceResult.Result.Value / 1_000_000_000;
                 
-                if (solBalanceText != null) solBalanceText.text = $"{solBalance:F4} SOL";
-                if (solBalanceText2 != null) solBalanceText2.text = $"{solBalance:F4} SOL";
+                if (solBalanceText != null) solBalanceText.text = $"{solBalance:F4}";
+                if (solBalanceText2 != null) solBalanceText2.text = $"{solBalance:F4}";
             }
         }
         catch (Exception e) { Debug.LogError($"[WalletUI] SOL Error: {e.Message}"); }
@@ -109,8 +109,8 @@ public class PlayerWalletUI : MonoBehaviour
 
     private void UpdateTokenUI(string balanceString)
     {
-        if (tokenBalanceText != null) tokenBalanceText.text = $"{balanceString} $PLAY";
-        if (tokenBalanceText2 != null) tokenBalanceText2.text = $"{balanceString} $PLAY";
+        if (tokenBalanceText != null) tokenBalanceText.text = $"{balanceString}";
+        if (tokenBalanceText2 != null) tokenBalanceText2.text = $"{balanceString}";
     }
 
     private void OnDestroy()

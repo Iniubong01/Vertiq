@@ -16,6 +16,12 @@ public class UIManager : MonoBehaviour
     public float playTokenPrice = 50f;  
     public int coinsRewardAmount = 500; 
 
+    [Header("PowerUp Prices ($PLAY Token)")]
+    public float priceShield = 10f;
+    public float priceBullets = 15f;
+    public float priceFullLives = 20f;
+    public float priceFreezeTime = 25f;
+
     [Header("Coin Prices (SOL)")]
     public float pricePack10 = 0.05f;
     public float pricePack50 = 0.2f;
@@ -59,12 +65,8 @@ public class UIManager : MonoBehaviour
         // 3. Handle Scene State
         if (SkipSplashSequence)
         {
-            // Force reset all UIs to hidden to prevent "Ghost" alphas
             ResetAllUI();
-
-            // Enable only the Menu immediately (No Tween)
             EnableCanvasGroupInstant(menuUICG);
-            
             SkipSplashSequence = false; 
         }
         else
@@ -80,7 +82,6 @@ public class UIManager : MonoBehaviour
         UpdateFullLivesVisuals();
     }
 
-    // Helper to ensure we don't have overlapping UIs on start
     private void ResetAllUI()
     {
         DisableCanvasGroupInstant(splashUICG);
@@ -122,14 +123,11 @@ public class UIManager : MonoBehaviour
             PlayerPrefs.SetInt("FirstTimeCoinGift", 1);
             PlayerPrefs.Save();
             
-            ShopData.Instance.AddPowerup("shield");
-            ShopData.Instance.AddPowerup("shield");
-            ShopData.Instance.AddPowerup("bullets");
-            ShopData.Instance.AddPowerup("bullets");
-            ShopData.Instance.AddPowerup("freezetime");
-            ShopData.Instance.AddPowerup("freezetime");
-            ShopData.Instance.AddPowerup("fulllives");
-            ShopData.Instance.AddPowerup("fulllives");
+            // Give 2 of each powerup for free
+            ShopData.Instance.AddPowerup("shield"); ShopData.Instance.AddPowerup("shield");
+            ShopData.Instance.AddPowerup("bullets"); ShopData.Instance.AddPowerup("bullets");
+            ShopData.Instance.AddPowerup("freezetime"); ShopData.Instance.AddPowerup("freezetime");
+            ShopData.Instance.AddPowerup("fulllives"); ShopData.Instance.AddPowerup("fulllives");
         }
     }
     
@@ -139,7 +137,7 @@ public class UIManager : MonoBehaviour
     private IEnumerator CloseSplashThenLoadMain()
     {
         yield return new WaitForSeconds(Random.Range(4.5f, 8f));
-        SetCanvasGroupInActive(splashUICG); // Use the fade out
+        SetCanvasGroupInActive(splashUICG); 
         yield return new WaitForSeconds(fadeDuration);
         yield return StartCoroutine(ShowLoadingUI(menuUICG));
     }
@@ -170,33 +168,26 @@ public class UIManager : MonoBehaviour
         if (targetUI != null) SetCanvasGroupActive(targetUI);
     }
 
-    // [FIX] Smooth Transition Active
     private void SetCanvasGroupActive(CanvasGroup tUI)
     {
-        tUI.DOKill(); // Stop any previous fade
+        tUI.DOKill(); 
         tUI.gameObject.SetActive(true);
-        tUI.alpha = 0; // Ensure it starts invisible
-        tUI.DOFade(1, fadeDuration).SetUpdate(true); // SetUpdate(true) ensures it ignores timeScale just in case
+        tUI.alpha = 0; 
+        tUI.DOFade(1, fadeDuration).SetUpdate(true); 
         tUI.interactable = true;
         tUI.blocksRaycasts = true;
     }
 
-    // [FIX] Smooth Transition Inactive
     private void SetCanvasGroupInActive(CanvasGroup tUI)
     {
-        tUI.DOKill(); // Stop any previous fade
+        tUI.DOKill(); 
         tUI.interactable = false;
         tUI.blocksRaycasts = false;
-        
-        // Fade out, then disable GameObject
         tUI.DOFade(0, fadeDuration)
-           .SetUpdate(true) // Ignore timeScale
-           .OnComplete(() => {
-               tUI.gameObject.SetActive(false);
-           });
+            .SetUpdate(true) 
+            .OnComplete(() => { tUI.gameObject.SetActive(false); });
     }
 
-    // [FIX] Instant Helpers for SkipSequence
     private void EnableCanvasGroupInstant(CanvasGroup tUI)
     {
         tUI.DOKill();
@@ -225,23 +216,22 @@ public class UIManager : MonoBehaviour
     public static void LoadMainMenu()
     {
         SkipSplashSequence = true;
-        Time.timeScale = 1f; // [CRITICAL FIX] Ensure time is running before load
-        DOTween.KillAll();   // Clean up tweens
+        Time.timeScale = 1f; 
+        DOTween.KillAll();   
         SceneManager.LoadScene("Splash"); 
     }
     
-    private void OnDestroy()
-    {
-        DOTween.KillAll();
-    }
+    private void OnDestroy() { DOTween.KillAll(); }
     #endregion
 
-    #region PURCHASE LOGIC
+    #region PURCHASE LOGIC (UPDATED FOR TOKEN POWERUPS)
+
     public void BuyCoinsWithPlay()
     {
         PlayClickSound();
         if (paymentProcessor != null && !string.IsNullOrEmpty(playTokenMintAddress))
         {
+            // PaymentProcessor handles balance checks and popups internally
             paymentProcessor.PurchaseWithSplToken(playTokenPrice, playTokenMintAddress, () => 
             {
                 ShopData.Instance.AddCoins(coinsRewardAmount);
@@ -258,61 +248,84 @@ public class UIManager : MonoBehaviour
     public void BuyCoinsPack50() { PlayClickSound(); if(paymentProcessor != null) paymentProcessor.PurchaseWithSol(pricePack50, () => { ShopData.Instance.AddCoins(50); UpdateUI(); }); }
     public void BuyCoinsPack100() { PlayClickSound(); if(paymentProcessor != null) paymentProcessor.PurchaseWithSol(pricePack100, () => { ShopData.Instance.AddCoins(100); UpdateUI(); }); }
     public void BuyCoinsPack200() { PlayClickSound(); if(paymentProcessor != null) paymentProcessor.PurchaseWithSol(pricePack200, () => { ShopData.Instance.AddCoins(200); UpdateUI(); }); }
-    #endregion
-
-    #region POWERUPS & VISUALS
-    public void checkInteractivity_ShieldButton() { powerUpPurchaseButtons[0].interactable = ShopData.Instance.coins >= 50 && ShopData.Instance.powerupShield < 5; }
-    public void checkInteractivity_MultipleBulletButton() { powerUpPurchaseButtons[1].interactable = ShopData.Instance.coins >= 75 && ShopData.Instance.powerupMultipleBullets < 5; }
-    public void checkInteractivity_FullLivesButton() { powerUpPurchaseButtons[2].interactable = ShopData.Instance.coins >= 115 && ShopData.Instance.powerupFullLives < 5; }
-    public void checkInteractivity_FreezeTimeButton() { powerUpPurchaseButtons[3].interactable = ShopData.Instance.coins >= 145 && ShopData.Instance.powerupFreezeTime < 5; }
+    
+    // --- POWERUP PURCHASES WITH TOKEN ---
 
     public void BuyShieldPowerup()
     {
         PlayClickSound();
-        if (ShopData.Instance.SpendCoins(50) && ShopData.Instance.powerupShield < 5)
+        // 1. Check Max Limit first
+        if (ShopData.Instance.powerupShield >= 5) return;
+
+        // 2. Validate Config
+        if (paymentProcessor == null || string.IsNullOrEmpty(playTokenMintAddress)) { Debug.LogError("Config missing"); return; }
+
+        // 3. Initiate Token Purchase
+        // MarketplacePurchase handles the balance check and error popups
+        paymentProcessor.PurchaseWithSplToken(priceShield, playTokenMintAddress, () =>
         {
+            // On Success
             ShopData.Instance.AddPowerup("shield");
             UpdateShieldVisuals();
             UpdateUI();
             StartCoroutine(RefocusSelectionRoutine());
-        }
+        });
     }
 
     public void BuyMultipleBullets()
     {
         PlayClickSound();
-        if (ShopData.Instance.SpendCoins(75) && ShopData.Instance.powerupMultipleBullets < 5)
+        if (ShopData.Instance.powerupMultipleBullets >= 5) return;
+        if (paymentProcessor == null || string.IsNullOrEmpty(playTokenMintAddress)) { Debug.LogError("Config missing"); return; }
+
+        paymentProcessor.PurchaseWithSplToken(priceBullets, playTokenMintAddress, () =>
         {
             ShopData.Instance.AddPowerup("bullets");
             UpdateMultipleBulletsVisuals();
             UpdateUI();
             StartCoroutine(RefocusSelectionRoutine());
-        }
+        });
     }
 
     public void BuyFreezeTime()
     {
         PlayClickSound();
-        if (ShopData.Instance.SpendCoins(145) && ShopData.Instance.powerupFreezeTime < 5)
+        if (ShopData.Instance.powerupFreezeTime >= 5) return;
+        if (paymentProcessor == null || string.IsNullOrEmpty(playTokenMintAddress)) { Debug.LogError("Config missing"); return; }
+
+        paymentProcessor.PurchaseWithSplToken(priceFreezeTime, playTokenMintAddress, () =>
         {
             ShopData.Instance.AddPowerup("freezetime");
             UpdateFreezeTimeVisuals();
             UpdateUI();
             StartCoroutine(RefocusSelectionRoutine());
-        }
+        });
     }
 
     public void BuyFullLives()
     {
         PlayClickSound();
-        if (ShopData.Instance.SpendCoins(115) && ShopData.Instance.powerupFullLives < 5)
+        if (ShopData.Instance.powerupFullLives >= 5) return;
+        if (paymentProcessor == null || string.IsNullOrEmpty(playTokenMintAddress)) { Debug.LogError("Config missing"); return; }
+
+        paymentProcessor.PurchaseWithSplToken(priceFullLives, playTokenMintAddress, () =>
         {
             ShopData.Instance.AddPowerup("fulllives");
             UpdateFullLivesVisuals();
             UpdateUI();
             StartCoroutine(RefocusSelectionRoutine());
-        }
+        });
     }
+
+    #endregion
+
+    #region VISUALS & INTERACTIVITY
+
+    // Only check against MAX LIMIT (5). Balance check is handled async by PaymentProcessor.
+    public void checkInteractivity_ShieldButton() { powerUpPurchaseButtons[0].interactable = ShopData.Instance.powerupShield < 5; }
+    public void checkInteractivity_MultipleBulletButton() { powerUpPurchaseButtons[1].interactable = ShopData.Instance.powerupMultipleBullets < 5; }
+    public void checkInteractivity_FullLivesButton() { powerUpPurchaseButtons[2].interactable = ShopData.Instance.powerupFullLives < 5; }
+    public void checkInteractivity_FreezeTimeButton() { powerUpPurchaseButtons[3].interactable = ShopData.Instance.powerupFreezeTime < 5; }
 
     private IEnumerator RefocusSelectionRoutine()
     {
