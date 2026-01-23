@@ -7,7 +7,6 @@ using Solana.Unity.Wallet;
 using System.Collections.Generic;
 using System;
 using System.Threading.Tasks;
-using Reown.AppKit.Unity;
 
 public class MarketplacePurchase : MonoBehaviour
 {
@@ -41,11 +40,8 @@ public class MarketplacePurchase : MonoBehaviour
 
     private async Task PerformPurchase(float amount, string mintAddress, Action onSuccess)
     {
-        // 1. IMMEDIATE VISUAL FEEDBACK
-        // Shows up instantly when button is clicked
         ShowPopup("Processing", "Checking wallet...", Color.yellow);
 
-        // 2. SETUP CHECKS
         if (!EnsureWeb3Initialized()) 
         {
             ShowPopup("System Error", "Connection lost.", Color.red);
@@ -53,25 +49,23 @@ public class MarketplacePurchase : MonoBehaviour
         }
 
         bool isToken = !string.IsNullOrEmpty(mintAddress);
-        PublicKey buyerKey = WalletConnector.UserPublicKey;
         
-        // Android Fallback
-        if (buyerKey == null && AppKit.IsInitialized && AppKit.Account != null)
+        // Get the active wallet account
+        var wallet = Web3.Wallet;
+        if (wallet == null || wallet.Account == null)
         {
-            buyerKey = new PublicKey(AppKit.Account.Address);
+            ShowPopup("Wallet", "Connect wallet first.", Color.red);
+            return;
         }
 
-        if (buyerKey == null) { ShowPopup("Wallet", "Connect wallet first.", Color.red); return; }
-
+        PublicKey buyerKey = wallet.Account.PublicKey;
         PublicKey sellerKey = new PublicKey(sellerWallet);
-
         PublicKey sourceTokenKey = null;
-        PublicKey sourceTokenOwner = null;
         int tokenDecimals = 9;
 
-        // =================================================================
-        // 3. PRE-FLIGHT CHECK
-        // =================================================================
+        // ---------------------------------------------------------
+        // PRE-FLIGHT CHECK
+        // ---------------------------------------------------------
         try 
         {
             var solBalanceReq = await Web3.Rpc.GetBalanceAsync(buyerKey);
@@ -94,7 +88,6 @@ public class MarketplacePurchase : MonoBehaviour
 
                 var tokenAccountPair = await FindTokenAccountBroad(buyerKey, mintAddress);
                 sourceTokenKey = tokenAccountPair.PublicKey;
-                sourceTokenOwner = tokenAccountPair.Owner;
 
                 if (sourceTokenKey == null)
                 {
@@ -134,185 +127,144 @@ public class MarketplacePurchase : MonoBehaviour
         catch (Exception ex) 
         { 
             Debug.LogError($"Check Error: {ex.Message}");
+            ShowPopup("Error", "Balance check failed.", Color.red);
             return; 
         }
 
-        // =================================================================
-        // 4. BUILD INSTRUCTIONS
-        // =================================================================
-        var instructions = new List<TransactionInstruction>();
-        instructions.Add(ComputeBudgetProgram.SetComputeUnitLimit(300_000));
-        instructions.Add(ComputeBudgetProgram.SetComputeUnitPrice(100_000)); 
-
+        // ---------------------------------------------------------
+        // BUILD TRANSACTION USING SDK PATTERN
+        // ---------------------------------------------------------
         try 
         {
-             if (isToken)
+            var instructions = new List<TransactionInstruction>();
+            
+            // Add compute budget instructions
+            instructions.Add(ComputeBudgetProgram.SetComputeUnitLimit(300_000));
+            instructions.Add(ComputeBudgetProgram.SetComputeUnitPrice(100_000));
+
+            if (isToken)
             {
                 PublicKey tokenMint = new PublicKey(mintAddress);
                 ulong amountRaw = (ulong)(amount * Math.Pow(10, tokenDecimals));
                 
+                // Find or create seller's token account
                 var dest = await FindTokenAccountBroad(sellerKey, tokenMint.ToString());
-                PublicKey destParams = dest.PublicKey;
+                PublicKey destTokenAccount = dest.PublicKey;
                 
-                if(destParams == null)
+                if (destTokenAccount == null)
                 {
-                    destParams = AssociatedTokenAccountProgram.DeriveAssociatedTokenAccount(sellerKey, tokenMint);
-                    instructions.Add(AssociatedTokenAccountProgram.CreateAssociatedTokenAccount(buyerKey, sellerKey, tokenMint));
+                    // Create associated token account for seller if it doesn't exist
+                    destTokenAccount = AssociatedTokenAccountProgram.DeriveAssociatedTokenAccount(sellerKey, tokenMint);
+                    instructions.Add(
+                        AssociatedTokenAccountProgram.CreateAssociatedTokenAccount(
+                            buyerKey, 
+                            sellerKey, 
+                            tokenMint
+                        )
+                    );
                 }
 
-                var tx = TokenProgram.Transfer(sourceTokenKey, destParams, amountRaw, buyerKey);
-                instructions.Add(new TransactionInstruction { ProgramId = sourceTokenOwner ?? TokenProgram.ProgramIdKey, Keys = tx.Keys, Data = tx.Data });
+                // Add token transfer instruction - correct parameter order
+                instructions.Add(
+                    TokenProgram.Transfer(
+                        sourceTokenKey,      // source
+                        destTokenAccount,    // destination
+                        amountRaw,          // amount
+                        buyerKey            // owner
+                    )
+                );
             }
             else
             {
+                // SOL transfer
                 ulong lamports = (ulong)(amount * 1_000_000_000);
-                instructions.Add(SystemProgram.Transfer(buyerKey, sellerKey, lamports));
+                instructions.Add(
+                    SystemProgram.Transfer(
+                        buyerKey,   // from
+                        sellerKey,  // to
+                        lamports    // amount
+                    )
+                );
             }
-        }
-        catch (Exception ex) { Debug.LogError(ex); return; }
 
-        // 5. GET BLOCKHASH
-        var blockHash = await Web3.Rpc.GetLatestBlockHashAsync(Commitment.Finalized);
-        if (!blockHash.WasSuccessful) { ShowPopup("Error", "Network error.", Color.red); return; }
+            // Get recent blockhash
+            var blockHashResult = await Web3.Rpc.GetLatestBlockHashAsync(Commitment.Finalized);
+            if (!blockHashResult.WasSuccessful) 
+            { 
+                ShowPopup("Error", "Network error.", Color.red); 
+                return; 
+            }
 
-        // 6. SIGN & BROADCAST
-        string signedTxBase64 = null;
+            // ---------------------------------------------------------
+            // BUILD TRANSACTION AND SIGN
+            // ---------------------------------------------------------
+            ShowPopup("Wallet", "Please sign transaction...", Color.yellow);
 
-        try
-        {
-            // PATH A: EDITOR
-            if (WalletConnector.PlayerAccount != null)
+            // Create the transaction properly
+            var transaction = new Transaction
             {
-                var transaction = new Transaction
-                {
-                    RecentBlockHash = blockHash.Result.Value.Blockhash,
-                    FeePayer = buyerKey,
-                    Instructions = instructions
-                };
+                RecentBlockHash = blockHashResult.Result.Value.Blockhash,
+                FeePayer = buyerKey,
+                Instructions = instructions
+            };
 
-                transaction.Sign(WalletConnector.PlayerAccount);
-                ShowPopup("Processing", "Sending...", Color.yellow);
-                
-                var res = await Web3.Rpc.SendTransactionAsync(transaction.Serialize());
-                
-                if (res.WasSuccessful) 
-                {
-                    ShowPopup("Success!", "Purchase Complete!", Color.green);
-                    onSuccess?.Invoke();
-                }
-                else 
-                {
-                    ShowPopup("Failed", "Transaction Failed", Color.red);
-                }
-                return;
-            }
-            
-            // PATH B: ANDROID (AppKit)
-            if (AppKit.IsInitialized)
-            {
-                var transaction = new Transaction
-                {
-                    RecentBlockHash = blockHash.Result.Value.Blockhash,
-                    FeePayer = buyerKey,
-                    Instructions = instructions,
-                    Signatures = new List<SignaturePubKeyPair> { new SignaturePubKeyPair { PublicKey = buyerKey, Signature = new byte[64] } }
-                };
+            // Sign and send using the wallet adapter
+            var result = await wallet.SignAndSendTransaction(transaction);
 
-                // Request Signature (Wallet opens here)
-                ShowPopup("Wallet", "Please sign in wallet...", Color.yellow);
-                var signResponse = await AppKit.Solana.SignTransactionAsync(Convert.ToBase64String(transaction.Serialize()));
-
-                if (signResponse != null && !string.IsNullOrEmpty(signResponse.TransactionBase64))
-                {
-                    signedTxBase64 = signResponse.TransactionBase64;
-                    // IMMEDIATE FEEDBACK AFTER RETURNING FROM WALLET
-                    ShowPopup("Processing", "Finalizing transaction...", Color.yellow);
-                }
-                else
-                {
-                    ShowPopup("Cancelled", "Transaction cancelled.", Color.red);
-                    return; 
-                }
-            }
+            // Handle result
+            HandleTransactionResult(result.WasSuccessful, result.Reason, onSuccess);
         }
         catch (Exception ex)
         {
-            Debug.LogError($"Sign Error: {ex.Message}");
-            return;
-        }
-
-        // 7. CONFIRM LOOP
-        if (!string.IsNullOrEmpty(signedTxBase64))
-        {
-            string signature = GetSignatureFromTx(signedTxBase64);
-            byte[] signedBytes = Convert.FromBase64String(signedTxBase64);
-
-            float timeout = 45f;
-            float startTime = Time.time;
-            bool confirmed = false;
-
-            while (Time.time - startTime < timeout && !confirmed)
-            {
-                await Web3.Rpc.SendTransactionAsync(signedBytes, skipPreflight: true, commitment: Commitment.Processed);
-                await Task.Delay(1000);
-
-                if (string.IsNullOrEmpty(signature)) break;
-                
-                var status = await Web3.Rpc.GetSignatureStatusesAsync(new List<string> { signature }, true);
-                if (status.WasSuccessful && status.Result.Value != null && status.Result.Value.Count > 0)
-                {
-                    var s = status.Result.Value[0];
-                    if (s != null && (s.ConfirmationStatus == "confirmed" || s.ConfirmationStatus == "finalized"))
-                    {
-                        if (s.Error == null) confirmed = true;
-                        else 
-                        {
-                            ShowPopup("Failed", "Transaction failed.", Color.red);
-                            return; 
-                        }
-                    }
-                }
-            }
-
-            if (confirmed)
-            {
-                ShowPopup("Success!", "Purchase Complete!", Color.green);
-                onSuccess?.Invoke();
-            }
-            else
-            {
-                ShowPopup("Timeout", "Check wallet history.", Color.red);
-            }
+            Debug.LogError($"Transaction Error: {ex.Message}\n{ex.StackTrace}");
+            ShowPopup("Error", "Transaction failed.", Color.red);
         }
     }
 
-    private string GetSignatureFromTx(string base64)
+    private void HandleTransactionResult(bool success, string reason, Action onSuccess)
     {
-        try {
-            byte[] b = Convert.FromBase64String(base64);
-            if(b.Length > 65) {
-                byte[] sig = new byte[64];
-                Array.Copy(b, 1, sig, 0, 64);
-                return Solana.Unity.Wallet.Utilities.Encoders.Base58.EncodeData(sig);
-            }
-        } catch {}
-        return null;
+        if (success)
+        {
+            ShowPopup("Success!", "Purchase Complete!", Color.green);
+            onSuccess?.Invoke();
+        }
+        else
+        {
+            Debug.LogError($"Transaction failed: {reason}");
+            ShowPopup("Failed", $"Transaction failed.", Color.red);
+        }
     }
 
     private async Task<(PublicKey PublicKey, PublicKey Owner)> FindTokenAccountBroad(PublicKey owner, string mint)
     {
         if (!EnsureWeb3Initialized()) return (null, null);
-        var result = await Web3.Rpc.GetTokenAccountsByOwnerAsync(owner, mint, null);
-        if (result.WasSuccessful && result.Result.Value.Count > 0)
+        
+        try
         {
-            var data = result.Result.Value[0];
-            return (new PublicKey(data.PublicKey), new PublicKey(data.Account.Owner));
+            var result = await Web3.Rpc.GetTokenAccountsByOwnerAsync(owner, mint, null);
+            if (result.WasSuccessful && result.Result.Value.Count > 0)
+            {
+                var data = result.Result.Value[0];
+                return (new PublicKey(data.PublicKey), new PublicKey(data.Account.Owner));
+            }
         }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Token account lookup error: {ex.Message}");
+        }
+        
         return (null, null);
     }
 
     private void ShowPopup(string title, string message, Color color)
     {
-        if (notificationPopup != null) notificationPopup.Show(title, message, color);
+        if (notificationPopup != null) 
+        {
+            notificationPopup.Show(title, message, color);
+        }
+        else
+        {
+            Debug.Log($"[{title}] {message}");
+        }
     }
 }

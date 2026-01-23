@@ -14,7 +14,6 @@ using Solana.Unity.Programs;
 using System.Text;
 using TMPro;
 using UnityEngine.UI;
-using Reown.AppKit.Unity;
 
 public class JupiterSwapManager : MonoBehaviour
 {
@@ -30,7 +29,18 @@ public class JupiterSwapManager : MonoBehaviour
     [Header("Fee Configuration")]
     public string platformFeeWallet = ""; 
     [Range(0f, 10f)]
-    public float platformFeePercent = 0.75f; 
+    public float platformFeePercent = 0.75f; // YOUR REVENUE - 0.75%
+
+    [Header("Optimized Network Fee Settings")]
+    [Tooltip("Auto-adjusts priority fee based on network conditions (RECOMMENDED)")]
+    public bool useAutoPriorityFee = true;
+
+    [Tooltip("Fixed priority fee in lamports (used if auto is disabled)")]
+    [Range(0, 100000)]
+    public int fixedPriorityFeeLamports = 10000; // Reduced from 50,000
+
+    [Tooltip("Check if ATA exists before transaction to avoid unnecessary creation fees")]
+    public bool preCheckATA = true;
 
     [Header("UI References")]
     public TMP_InputField inputAmountField;
@@ -49,6 +59,7 @@ public class JupiterSwapManager : MonoBehaviour
     public TMP_Text feeText; 
     public TMP_Text inputUsdText;
     public TMP_Text outputUsdText;
+    public TMP_Text estimatedFeesText; // NEW: Shows estimated network fees
 
     public Button swapButton;
     public Button maxButton;
@@ -193,18 +204,49 @@ public class JupiterSwapManager : MonoBehaviour
         {
             double maxAmount = tokenData.balance;
             
-            // Safety Buffer for SOL
-            if (inputToken == "SOL") 
+            // Calculate required buffer based on fees
+            double requiredBuffer = CalculateRequiredBuffer(inputToken);
+            
+            if (maxAmount <= requiredBuffer) 
             {
-                double gasBuffer = 0.003; 
-                if (maxAmount <= gasBuffer) maxAmount = 0;
-                else maxAmount = maxAmount - gasBuffer;
+                maxAmount = 0;
+                ShowPopup("Insufficient SOL", $"Need {requiredBuffer:F4} SOL minimum", Color.red);
+            }
+            else 
+            {
+                maxAmount = maxAmount - requiredBuffer;
             }
 
             string format = "0." + new string('#', tokenData.decimals);
             inputAmountField.text = maxAmount.ToString(format);
             OnInputAmountChanged(inputAmountField.text);
         }
+    }
+
+    private double CalculateRequiredBuffer(string inputToken)
+    {
+        double buffer = 0.000005; // Actual base transaction fee (5,000 lamports)
+        
+        // Add priority fee
+        if (useAutoPriorityFee)
+        {
+            buffer += 0.00005; // Estimate for auto priority (conservative)
+        }
+        else
+        {
+            buffer += fixedPriorityFeeLamports / 1_000_000_000.0;
+        }
+        
+        // If platform fees are enabled, add ATA creation cost ONLY if needed
+        if (!string.IsNullOrEmpty(platformFeeWallet) && platformFeePercent > 0)
+        {
+            buffer += 0.00204; // ATA creation (only charged once per token)
+        }
+        
+        // Add small safety margin
+        buffer += 0.0001;
+        
+        return buffer;
     }
 
     private void ReverseTokens()
@@ -248,7 +290,31 @@ public class JupiterSwapManager : MonoBehaviour
         if (amount < minSwapAmount) { btnText.text = $"Minimum {minSwapAmount}"; swapButton.interactable = false; return; }
         if (tokenBalances.ContainsKey(inputToken) && amount > tokenBalances[inputToken].balance) { btnText.text = "Insufficient Funds"; swapButton.interactable = false; return; }
 
+        // Check if we have enough SOL for fees
+        if (!HasSufficientSolForFees(inputToken, amount))
+        {
+            btnText.text = "Need More SOL";
+            swapButton.interactable = false;
+            return;
+        }
+
         btnText.text = "Swap";
+    }
+
+    private bool HasSufficientSolForFees(string inputToken, float swapAmount)
+    {
+        if (!tokenBalances.ContainsKey("SOL")) return false;
+        
+        double solBalance = tokenBalances["SOL"].balance;
+        double requiredSol = CalculateRequiredBuffer(inputToken);
+        
+        // If swapping SOL itself, add the swap amount
+        if (inputToken == "SOL")
+        {
+            requiredSol += swapAmount;
+        }
+        
+        return solBalance >= requiredSol;
     }
     #endregion
 
@@ -277,7 +343,10 @@ public class JupiterSwapManager : MonoBehaviour
             if(debugMode) Debug.Log($"[Jupiter] Fetching Quote: {amount} {inputToken} -> {outputToken}");
             currentQuote = await GetQuoteWithRetry(inputMint, outputMint, amountRaw);
 
-            if (currentQuote != null) DisplayQuoteInfo();
+            if (currentQuote != null) 
+            {
+                await DisplayQuoteInfo();
+            }
             else 
             {
                 ShowPopup("No Route", "Try different tokens", Color.red);
@@ -302,8 +371,7 @@ public class JupiterSwapManager : MonoBehaviour
         return await GetQuote(url);
     }
 
-    // [RESTORED] Full Quote Display Logic
-    private void DisplayQuoteInfo()
+    private async Task DisplayQuoteInfo()
     {
         if (currentQuote == null) return;
         try
@@ -314,26 +382,21 @@ public class JupiterSwapManager : MonoBehaviour
             string inputToken = GetSelectedToken(inputTokenDropdown);
             string outputToken = GetSelectedToken(outputTokenDropdown);
 
-            // 1. Get Decimals
             int inDecimals = tokenBalances.ContainsKey(inputToken) ? tokenBalances[inputToken].decimals : 9;
             int outDecimals = tokenBalances.ContainsKey(outputToken) ? tokenBalances[outputToken].decimals : 9;
 
-            // 2. Parse Amounts
             double inAmount = double.Parse(currentQuote["inAmount"].ToString()) / Math.Pow(10, inDecimals);
             double outAmount = double.Parse(currentQuote["outAmount"].ToString()) / Math.Pow(10, outDecimals);
             double minReceived = double.Parse(currentQuote["otherAmountThreshold"].ToString()) / Math.Pow(10, outDecimals);
 
-            // 3. Update Output Field
             if (outputAmountField != null) outputAmountField.text = outAmount.ToString($"F{Math.Min(6, outDecimals)}");
 
-            // 4. Update Exchange Rate
             if (exchangeRateText != null && inAmount > 0)
             {
                 double rate = outAmount / inAmount;
                 exchangeRateText.text = $"1 {inputToken} ≈ {rate:F4} {outputToken}";
             }
 
-            // 5. Update Price Impact (with Color)
             double priceImpact = 0;
             if (priceImpactText != null && currentQuote["priceImpactPct"] != null)
             {
@@ -342,17 +405,20 @@ public class JupiterSwapManager : MonoBehaviour
                 priceImpactText.text = $"{displayImpact:F2}%";
                 
                 if (displayImpact < 0.1) priceImpactText.color = Color.green;
-                else if (displayImpact < 1.0) priceImpactText.color = new Color(1f, 0.64f, 0f); // Orange
+                else if (displayImpact < 1.0) priceImpactText.color = new Color(1f, 0.64f, 0f);
                 else priceImpactText.color = Color.red;
             }
 
-            // 6. Update Min Received
             if (minimumReceivedText != null) minimumReceivedText.text = $"{minReceived:F4} {outputToken}";
-
-            // 7. Update Fee
             if (feeText != null) feeText.text = $"{platformFeePercent}%";
 
-            // 8. Update USD Values
+            // Display estimated network fees
+            if (estimatedFeesText != null)
+            {
+                var feeEstimate = await EstimateSwapFees();
+                estimatedFeesText.text = $"Network Fees: ~{feeEstimate.totalSolFee:F6} SOL";
+            }
+
             if (currentQuote["swapUsdValue"] != null)
             {
                 string usdValStr = currentQuote["swapUsdValue"].ToString();
@@ -361,7 +427,6 @@ public class JupiterSwapManager : MonoBehaviour
                     if (inputUsdText != null) inputUsdText.text = $"≈ ${usdVal:F2}";
                     if (outputUsdText != null) 
                     {
-                        // Estimate output USD by reducing price impact
                         double outputUsdVal = usdVal * (1.0 - priceImpact);
                         outputUsdText.text = $"≈ ${outputUsdVal:F2}";
                     }
@@ -374,7 +439,6 @@ public class JupiterSwapManager : MonoBehaviour
         }
     }
 
-    // [RESTORED] Clears all UI elements
     private void ClearQuoteInfo()
     {
         if (quoteInfoContainer != null) quoteInfoContainer.SetActive(false);
@@ -386,6 +450,7 @@ public class JupiterSwapManager : MonoBehaviour
         if (feeText != null) feeText.text = "--";
         if (inputUsdText != null) inputUsdText.text = "";
         if (outputUsdText != null) outputUsdText.text = "";
+        if (estimatedFeesText != null) estimatedFeesText.text = "";
 
         if (swapButton != null) swapButton.interactable = false;
         UpdateButtonState(); 
@@ -395,6 +460,22 @@ public class JupiterSwapManager : MonoBehaviour
     {
         if (currentQuote == null || WalletConnector.UserPublicKey == null) return;
         
+        // CRITICAL: Final balance check before swap
+        string inputToken = GetSelectedToken(inputTokenDropdown);
+        if (!float.TryParse(inputAmountField.text, out float swapAmount))
+        {
+            ShowPopup("Error", "Invalid amount", Color.red);
+            return;
+        }
+
+        if (!HasSufficientSolForFees(inputToken, swapAmount))
+        {
+            double requiredSol = CalculateRequiredBuffer(inputToken);
+            if (inputToken == "SOL") requiredSol += swapAmount;
+            ShowPopup("Insufficient SOL", $"Need {requiredSol:F4} SOL total", Color.red);
+            return;
+        }
+
         swapButton.interactable = false;
         ShowPopup("Creating Transaction", "Please wait...", Color.yellow);
 
@@ -443,6 +524,8 @@ public class JupiterSwapManager : MonoBehaviour
     private async Task<string> GetSwapTransaction(JObject quote)
     {
         string feeAccount = null;
+        bool needsAtaCreation = false;
+        
         if (!string.IsNullOrEmpty(platformFeeWallet) && platformFeePercent > 0)
         {
             try 
@@ -453,18 +536,41 @@ public class JupiterSwapManager : MonoBehaviour
                 PublicKey mintKey = new PublicKey(outputMint);
                 PublicKey ata = AssociatedTokenAccountProgram.DeriveAssociatedTokenAccount(feeWalletKey, mintKey);
                 feeAccount = ata.ToString();
+                
+                // CHECK IF ATA EXISTS to avoid unnecessary creation fees
+                if (preCheckATA)
+                {
+                    needsAtaCreation = !(await CheckATAExists(ata));
+                    if (needsAtaCreation && debugMode)
+                    {
+                        Debug.Log($"[Jupiter] ATA will be created (~0.002 SOL fee)");
+                    }
+                }
             }
-            catch { }
+            catch (Exception ex) 
+            { 
+                if(debugMode) Debug.LogWarning($"[Jupiter] ATA check failed: {ex.Message}");
+            }
         }
 
-        // Fixed priority fee (0.00005 SOL) to prevent low-balance errors
+        // Use dynamic priority fee or fixed lower amount
+        object priorityFee;
+        if (useAutoPriorityFee)
+        {
+            priorityFee = "auto"; // Let Jupiter calculate optimal fee
+        }
+        else
+        {
+            priorityFee = fixedPriorityFeeLamports; // Use your fixed amount
+        }
+
         var reqData = new 
         {
             quoteResponse = quote, 
             userPublicKey = WalletConnector.UserPublicKey.ToString(),
             wrapAndUnwrapSol = true,
-            dynamicComputeUnitLimit = true, 
-            prioritizationFeeLamports = 50000, 
+            dynamicComputeUnitLimit = true,
+            computeUnitPriceMicroLamports = priorityFee, // OPTIMIZED: More efficient param
             feeAccount = feeAccount 
         };
 
@@ -493,71 +599,106 @@ public class JupiterSwapManager : MonoBehaviour
         }
     }
 
+    // NEW: Helper method to check if ATA exists
+    private async Task<bool> CheckATAExists(PublicKey ataAddress)
+    {
+        try
+        {
+            var result = await Web3.Rpc.GetAccountInfoAsync(ataAddress.ToString());
+            return result.WasSuccessful && result.Result.Value != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // NEW: Method to estimate total fees before swap
+    public async Task<FeeEstimate> EstimateSwapFees()
+    {
+        var estimate = new FeeEstimate();
+        
+        // Base transaction fee
+        estimate.baseFee = 0.000005;
+        
+        // Priority fee
+        if (useAutoPriorityFee)
+        {
+            estimate.priorityFee = 0.00005; // Conservative estimate
+        }
+        else
+        {
+            estimate.priorityFee = fixedPriorityFeeLamports / 1_000_000_000.0;
+        }
+        
+        // Platform fee (percentage of swap amount)
+        if (float.TryParse(inputAmountField.text, out float amount))
+        {
+            estimate.platformFeeAmount = amount * (platformFeePercent / 100.0);
+        }
+        
+        // ATA creation (check if needed)
+        if (!string.IsNullOrEmpty(platformFeeWallet) && platformFeePercent > 0)
+        {
+            try
+            {
+                string outputToken = GetSelectedToken(outputTokenDropdown);
+                string outputMint = GetTokenMint(outputToken);
+                PublicKey feeWalletKey = new PublicKey(platformFeeWallet);
+                PublicKey mintKey = new PublicKey(outputMint);
+                PublicKey ata = AssociatedTokenAccountProgram.DeriveAssociatedTokenAccount(feeWalletKey, mintKey);
+                
+                if (!(await CheckATAExists(ata)))
+                {
+                    estimate.ataCreationFee = 0.00203928;
+                }
+            }
+            catch { }
+        }
+        
+        estimate.totalSolFee = estimate.baseFee + estimate.priorityFee + estimate.ataCreationFee;
+        
+        return estimate;
+    }
+
     private async Task SignAndSendTransaction(string txBase64)
     {
         try
         {
-            // PATH A: EDITOR
-            if (WalletConnector.PlayerAccount != null) 
+            byte[] txBytes = Convert.FromBase64String(txBase64);
+            var transaction = Transaction.Deserialize(txBytes);
+            
+            // Get the active wallet
+            var wallet = Web3.Wallet;
+            if (wallet == null || wallet.Account == null)
             {
-                byte[] txBytes = Convert.FromBase64String(txBase64);
-                // Editor parsing logic
-                int offset = 0;
-                byte versionByte = txBytes[offset++];
-                bool isVersioned = (versionByte & 0x80) != 0;
-                
-                if (isVersioned)
-                {
-                    int numSignatures = ReadCompactU16(txBytes, ref offset);
-                    int messageStart = offset + (numSignatures * 64);
-                    byte[] messageBytes = new byte[txBytes.Length - messageStart];
-                    Array.Copy(txBytes, messageStart, messageBytes, 0, messageBytes.Length);
-                    byte[] signature = WalletConnector.PlayerAccount.Sign(messageBytes);
-                    byte[] signedTx = new byte[1 + GetCompactU16Size(numSignatures) + (signature.Length * numSignatures) + messageBytes.Length];
-                    int writeOffset = 0;
-                    signedTx[writeOffset++] = versionByte;
-                    WriteCompactU16(signedTx, ref writeOffset, numSignatures);
-                    Array.Copy(signature, 0, signedTx, writeOffset, signature.Length);
-                    writeOffset += signature.Length;
-                    Array.Copy(messageBytes, 0, signedTx, writeOffset, messageBytes.Length);
-                    await SendSignedTransaction(Convert.ToBase64String(signedTx));
-                }
-                else
-                {
-                    int numSignatures = txBytes[0];
-                    int messageStart = 1 + (numSignatures * 64);
-                    byte[] messageBytes = new byte[txBytes.Length - messageStart];
-                    Array.Copy(txBytes, messageStart, messageBytes, 0, messageBytes.Length);
-                    byte[] signature = WalletConnector.PlayerAccount.Sign(messageBytes);
-                    byte[] signedTx = new byte[1 + signature.Length + messageBytes.Length];
-                    signedTx[0] = (byte)numSignatures;
-                    Array.Copy(signature, 0, signedTx, 1, signature.Length);
-                    Array.Copy(messageBytes, 0, signedTx, 1 + signature.Length, messageBytes.Length);
-                    await SendSignedTransaction(Convert.ToBase64String(signedTx));
-                }
-            } 
-            // PATH B: ANDROID
-            else if (AppKit.IsInitialized)
+                ShowPopup("Wallet", "Connect wallet first.", Color.red);
+                swapButton.interactable = true;
+                return;
+            }
+
+            ShowPopup("Wallet", "Please sign transaction...", Color.yellow);
+            
+            // Sign and send using the wallet adapter (works for both Editor and Mobile)
+            var result = await wallet.SignAndSendTransaction(transaction);
+
+            // Handle result
+            if (result.WasSuccessful)
             {
-                ShowPopup("Wallet", "Please sign in wallet...", Color.yellow);
-                var signResponse = await AppKit.Solana.SignTransactionAsync(txBase64);
-                if (signResponse != null && !string.IsNullOrEmpty(signResponse.TransactionBase64))
-                {
-                    ShowPopup("Processing", "Finalizing swap...", Color.yellow);
-                    await SendSignedTransaction(signResponse.TransactionBase64);
-                }
-                else
-                {
-                    ShowPopup("Cancelled", "Swap cancelled", Color.red);
-                    swapButton.interactable = true;
-                }
+                HandleSwapSuccess(result.Result);
+            }
+            else
+            {
+                Debug.LogError($"Transaction failed: {result.Reason}");
+                ShowPopup("Failed", "Transaction failed.", Color.red);
+                swapButton.interactable = true;
             }
         }
         catch (Exception ex)
         {
             ShowPopup("Error", "Signing Failed", Color.red);
             swapButton.interactable = true;
-            Debug.LogError($"[Jupiter] Sign Error: {ex.Message}");
+            Debug.LogError($"[Jupiter] Sign Error: {ex.Message}\n{ex.StackTrace}");
         }
     }
 
@@ -603,6 +744,32 @@ public class JupiterSwapManager : MonoBehaviour
     private string GetSelectedToken(TMP_Dropdown d) => d == null ? "SOL" : d.options[d.value].text;
     private string GetTokenMint(string t) => t == "SOL" ? wrappedSolMint : (t == "USDC" ? usdcMint : playTokenMint);
     private void ShowPopup(string t, string m, Color c) { if (notificationPopup != null) notificationPopup.Show(t, m, c); }
-    [Serializable] public class TokenBalance { public string mint; public double balance; public int decimals; }
+    
+    [Serializable] 
+    public class TokenBalance 
+    { 
+        public string mint; 
+        public double balance; 
+        public int decimals; 
+    }
+
+    [Serializable]
+    public class FeeEstimate
+    {
+        public double baseFee;
+        public double priorityFee;
+        public double platformFeeAmount; // Your 0.75% revenue
+        public double ataCreationFee;
+        public double totalSolFee; // Total network fees in SOL
+        
+        public override string ToString()
+        {
+            return $"Base: {baseFee:F6} SOL\n" +
+                   $"Priority: {priorityFee:F6} SOL\n" +
+                   $"Platform Fee: {platformFeeAmount:F6} (Your Revenue)\n" +
+                   $"ATA Creation: {ataCreationFee:F6} SOL\n" +
+                   $"Total Network Fees: {totalSolFee:F6} SOL";
+        }
+    }
     #endregion
 }
