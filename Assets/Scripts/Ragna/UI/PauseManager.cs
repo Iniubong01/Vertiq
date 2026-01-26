@@ -11,7 +11,7 @@ public class PauseManager : MonoBehaviour
     [SerializeField] private GameObject pauseButton; 
 
     [Header("Input Settings")]
-    [SerializeField] private InputActionReference pauseAction;
+    [SerializeField] private InputActionReference pauseAction; // Start button in game scene
 
     private bool isPaused = false;
 
@@ -35,7 +35,7 @@ public class PauseManager : MonoBehaviour
 
     private void OnPausePerformed(InputAction.CallbackContext context)
     {
-        // 🎯 FIX: Don't pause if a power-up was just activated
+        // Don't pause if a power-up was just activated
         if (PowerUpManager.Instance != null && PowerUpManager.Instance.WasPowerUpJustActivated())
         {
             Debug.Log("[PauseManager] Ignoring pause - power-up just activated");
@@ -47,7 +47,7 @@ public class PauseManager : MonoBehaviour
 
     public void TogglePause()
     {
-        // 🎯 ADDITIONAL CHECK: Don't pause if power-up just activated
+        // Additional check: Don't pause if power-up just activated
         if (PowerUpManager.Instance != null && PowerUpManager.Instance.WasPowerUpJustActivated())
         {
             Debug.Log("[PauseManager] Ignoring pause toggle - power-up just activated");
@@ -95,10 +95,14 @@ public class PauseManager : MonoBehaviour
         }
 
         EventSystem.current.SetSelectedGameObject(null);
+        isPaused = false;
     }
 
     public void LoadHomeScene()
     {
+        // Reset time scale before leaving
+        Time.timeScale = 1f;
+        isPaused = false;
         UIManager.LoadMainMenu();
     }
 }

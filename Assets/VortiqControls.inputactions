@@ -1,6 +1,6 @@
 {
     "version": 1,
-    "name": "Vortiq",
+    "name": "VortiqControls",
     "maps": [
         {
             "name": "Player",
@@ -73,6 +73,24 @@
                     "name": "Pause",
                     "type": "Button",
                     "id": "cf023591-5e9c-48d6-bd70-67f94849f55b",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Start",
+                    "type": "Button",
+                    "id": "1334a623-3fc4-4502-9f6a-0f2eae1bbfc8",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Select",
+                    "type": "Button",
+                    "id": "2ffdb5ef-525e-42e5-86a6-727bd061fc5e",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -374,6 +392,28 @@
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "Pause",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "471fddaa-4a40-4c49-9ccf-25ab1ede6d67",
+                    "path": "<Gamepad>/start",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "Start",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "f4d61ca2-b55d-4ed8-9acf-0ea3ffa5afa3",
+                    "path": "<Gamepad>/select",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "Select",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
