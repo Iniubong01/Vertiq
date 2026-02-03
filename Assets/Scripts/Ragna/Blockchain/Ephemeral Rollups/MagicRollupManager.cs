@@ -9,7 +9,6 @@ using System.Reflection;
 
 public class MagicRollupManager : MonoBehaviour
 {
-    // --- CONFIGURATION ---
     private const string L1_URL = "https://api.mainnet-beta.solana.com";
     private const string ER_URL = "https://mainnet.magicblock.app"; 
 
@@ -21,10 +20,7 @@ public class MagicRollupManager : MonoBehaviour
 
     private Account GetLiveAccount()
     {
-        // 1. Priority: Static WalletConnector
         if (WalletConnector.PlayerAccount != null) return WalletConnector.PlayerAccount;
-
-        // 2. Reflection
         if (WalletObject != null)
         {
             var scripts = WalletObject.GetComponents<MonoBehaviour>();
@@ -45,11 +41,8 @@ public class MagicRollupManager : MonoBehaviour
                 }
             }
         }
-
-        // 3. Fallbacks
         if (Web3.Account != null) return Web3.Account;
         if (Web3.Wallet != null) return Web3.Wallet.Account;
-
         return null;
     }
 
@@ -63,15 +56,11 @@ public class MagicRollupManager : MonoBehaviour
     private void SetupClients(Account account)
     {
         if (_programL1 != null) return;
-
         Debug.Log($"✅ [MAINNET] Login Detected! User: {account.PublicKey}");
-
         var clientL1 = ClientFactory.GetClient(L1_URL);
         _programL1 = new Vortiq.VortiqClient(clientL1, null); 
-
         var clientER = ClientFactory.GetClient(ER_URL);
         _programER = new Vortiq.VortiqClient(clientER, null);
-        
         Debug.Log("✅ Clients Configured.");
     }
 
@@ -86,7 +75,7 @@ public class MagicRollupManager : MonoBehaviour
 
         if (_programL1 == null) SetupClients(account);
 
-        Debug.Log("Initializing Vortiq Account on MAINNET (Real SOL will be spent)...");
+        Debug.Log("Initializing Vortiq Account on MAINNET...");
         
         var newAccount = new Account(); 
         _randomnessAccount = newAccount.PublicKey;
@@ -99,13 +88,15 @@ public class MagicRollupManager : MonoBehaviour
                     Payer = account.PublicKey,
                     SystemProgram = SystemProgram.ProgramIdKey
                 },
-                // FIX: Added 'account' here so YOU sign the transaction
-                signingAccounts: new [] { newAccount, account }, 
+                // Aux Signer: New Account
+                signingAccounts: new [] { newAccount }, 
+                // Explicit Payer: Your User Account (for manual signing fallback)
+                payerAccount: account,
                 commitment: Commitment.Confirmed
             );
 
             if (result.WasSuccessful) 
-                Debug.Log($"✅ Vortiq Account Created on Mainnet: {_randomnessAccount}");
+                Debug.Log($"✅ Vortiq Account Created: {_randomnessAccount}");
             else 
                 Debug.LogError($"❌ Init failed: {result.Reason}");
         }
@@ -127,7 +118,6 @@ public class MagicRollupManager : MonoBehaviour
         if (_programER == null && account != null) SetupClients(account);
 
         Debug.Log("Sending Fast Transaction to Mainnet Rollup...");
-
         var fakeOracleQueue = new Account().PublicKey; 
 
         try 
@@ -139,9 +129,9 @@ public class MagicRollupManager : MonoBehaviour
                     SystemProgram = SystemProgram.ProgramIdKey,
                     SlotHashes = new PublicKey("SysvarS1otHashes111111111111111111111111111")
                 },
-                // FIX: Added 'account' here so YOU sign the transaction
-                signingAccounts: new [] { account },
-                kill_count: 0, 
+                kill_count: 0,
+                // Explicit Payer: Your User Account (for manual signing fallback)
+                payerAccount: account,
                 commitment: Commitment.Processed 
             );
             

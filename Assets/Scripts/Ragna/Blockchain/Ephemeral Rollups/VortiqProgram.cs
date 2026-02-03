@@ -8,7 +8,7 @@ using Solana.Unity.Rpc;
 using Solana.Unity.Rpc.Models;
 using Solana.Unity.Rpc.Types;
 using Solana.Unity.Wallet;
-using Solana.Unity.SDK; // Added for Web3
+using Solana.Unity.SDK; 
 using Solana.Unity.Rpc.Core.Http;
 
 using Vortiq;
@@ -65,11 +65,45 @@ namespace Vortiq
         {
         }
 
-        // --- FIXED: NOW SIGNS WITH USER WALLET ---
+        // --- SMART TRANSACTION HANDLER ---
+        private async Task<RequestResult<string>> SmartSignAndSend(
+            Transaction tx, 
+            IEnumerable<Account> auxiliarySigners, 
+            Account explicitPayer,                 
+            Commitment commitment)
+        {
+            // 1. Sign with auxiliary accounts (e.g. the new account being created)
+            if (auxiliarySigners != null)
+            {
+                tx.Sign(auxiliarySigners.ToList());
+            }
+
+            // 2. CHECK: Is there a Global Wallet (Mobile/Web/Phantom)?
+            if (Web3.Wallet != null)
+            {
+                // FIX: Added 'false' for skipPreflight to match SDK signature
+                return await Web3.Wallet.SignAndSendTransaction(tx, false, commitment);
+            }
+
+            // 3. FALLBACK: Editor / Local Wallet
+            if (explicitPayer != null)
+            {
+                tx.Sign(explicitPayer);
+                
+                // FIX: Convert to Base64 String
+                var base64Tx = Convert.ToBase64String(tx.Serialize());
+                
+                // FIX: Added 'false' for skipPreflight
+                return await RpcClient.SendTransactionAsync(base64Tx, false, commitment);
+            }
+
+            throw new Exception("Cannot send transaction: Web3.Wallet is null (Editor?) and no explicitPayer account was provided.");
+        }
 
         public async Task<RequestResult<string>> InitializeAsync(
             Program.InitializeAccounts accounts, 
             IEnumerable<Account> signingAccounts = null, 
+            Account payerAccount = null,                 
             PublicKey programId = null, 
             Commitment commitment = Commitment.Confirmed)
         {
@@ -82,23 +116,14 @@ namespace Vortiq
                 Instructions = new List<TransactionInstruction> { instr }
             };
 
-            // 1. Sign with the New Account (Local)
-            if(signingAccounts != null) tx.Sign((IList<Account>)signingAccounts);
-
-            // 2. Sign with the User's Wallet (Network)
-            if (Web3.Wallet != null)
-            {
-                tx = await Web3.Wallet.SignTransaction(tx);
-            }
-
-            // 3. Send
-            return await RpcClient.SendTransactionAsync(tx.Serialize(), commitment: commitment);
+            return await SmartSignAndSend(tx, signingAccounts, payerAccount, commitment);
         }
 
         public async Task<RequestResult<string>> RequestRandomnessAsync(
             Program.RequestRandomnessAccounts accounts, 
             ulong kill_count, 
             IEnumerable<Account> signingAccounts = null, 
+            Account payerAccount = null,
             PublicKey programId = null, 
             Commitment commitment = Commitment.Confirmed)
         {
@@ -111,45 +136,29 @@ namespace Vortiq
                 Instructions = new List<TransactionInstruction> { instr }
             };
 
-            if(signingAccounts != null) tx.Sign((IList<Account>)signingAccounts);
-
-            // Sign with User Wallet
-            if (Web3.Wallet != null)
-            {
-                tx = await Web3.Wallet.SignTransaction(tx);
-            }
-
-            return await RpcClient.SendTransactionAsync(tx.Serialize(), commitment: commitment);
+            return await SmartSignAndSend(tx, signingAccounts, payerAccount, commitment);
         }
 
         public async Task<RequestResult<string>> ConsumeRandomnessAsync(
             Program.ConsumeRandomnessAccounts accounts, 
             byte[] randomness, 
             IEnumerable<Account> signingAccounts = null, 
+            Account payerAccount = null,
             PublicKey programId = null, 
             Commitment commitment = Commitment.Confirmed)
         {
             var instr = Program.VortiqProgram.ConsumeRandomness(accounts, randomness, programId);
             var blockHash = await RpcClient.GetLatestBlockHashAsync(commitment);
-
             var tx = new Transaction {
                 RecentBlockHash = blockHash.Result.Value.Blockhash,
-                FeePayer = accounts.VrfProgramIdentity,
+                FeePayer = accounts.Payer,
                 Instructions = new List<TransactionInstruction> { instr }
             };
 
-            if(signingAccounts != null) tx.Sign((IList<Account>)signingAccounts);
-            
-            // Sign with User Wallet
-            if (Web3.Wallet != null)
-            {
-                tx = await Web3.Wallet.SignTransaction(tx);
-            }
-
-            return await RpcClient.SendTransactionAsync(tx.Serialize(), commitment: commitment);
+            return await SmartSignAndSend(tx, signingAccounts, payerAccount, commitment);
         }
 
-        // --- END OF FIX ---
+        // --- DATA METHODS (UNCHANGED) ---
 
         public async Task<Solana.Unity.Programs.Models.ProgramAccountsResultWrapper<List<Accounts.RandomnessState>>> GetRandomnessStatesAsync(string programAddress = Program.VortiqProgram.ID, Commitment commitment = Commitment.Confirmed)
         {
@@ -194,6 +203,7 @@ namespace Vortiq
         {
             public PublicKey VrfProgramIdentity { get; set; }
             public PublicKey RandomnessState { get; set; }
+            public PublicKey Payer { get; set; }
         }
 
         public class InitializeAccounts
