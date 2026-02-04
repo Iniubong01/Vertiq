@@ -123,6 +123,16 @@ public class WalletConnector : MonoBehaviour
         
         if (!suppressNotification) 
             notificationPopup?.Show("Success!", "Wallet Connected", Color.green);
+
+        // [FIX] IMMEDIATELY LOGIN TO UNITY LEADERBOARDS
+        if (DualLeaderboardManager.Instance != null)
+        {
+            DualLeaderboardManager.Instance.LoginToUnity(account.PublicKey.ToString());
+        }
+        else
+        {
+            Debug.LogWarning("DualLeaderboardManager not found! Unity Login skipped.");
+        }
     }
 
     private void UpdateConnectedUI(string publicKey)

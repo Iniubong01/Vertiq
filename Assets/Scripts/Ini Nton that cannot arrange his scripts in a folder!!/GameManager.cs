@@ -10,6 +10,9 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
+    [Header("Leaderboards")]
+    [SerializeField] private DualLeaderboardManager leaderboardManager;
+
     [SerializeField] private Player player;
     [SerializeField] private ParticleSystem explosionEffect, enemyExplosionEffect;
     [SerializeField] private GameObject gameOverUI, powerUpButtons;
@@ -205,11 +208,20 @@ public class GameManager : MonoBehaviour
             gameOverUI.SetActive(true);
             powerUpButtons.SetActive(false);
             
-            // Trigger the Fade In
             if (gameOverCanvasGroup != null)
                 StartCoroutine(FadeInGameOver());
                 
             Debug.Log("Game Over!");
+
+            // [UPDATED] Use the Singleton Instance instead of the inspector reference
+            if (DualLeaderboardManager.Instance != null)
+            {
+                DualLeaderboardManager.Instance.SubmitScoreHybrid(score);
+            }
+            else
+            {
+                Debug.LogWarning("Leaderboard System is missing! Did you start from the Splash/Boot scene?");
+            }
         }
         else
         {

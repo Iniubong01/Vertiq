@@ -6,12 +6,10 @@ using System.Threading.Tasks;
 
 public class AnalyticsManager : MonoBehaviour
 {
-    // Singleton instance to access this from anywhere (e.g., WalletConnector)
     public static AnalyticsManager Instance;
 
     async void Awake()
     {
-        // Singleton Pattern: Ensure only one AnalyticsManager exists
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -19,7 +17,7 @@ public class AnalyticsManager : MonoBehaviour
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject); // Keep this object alive when changing scenes
+        DontDestroyOnLoad(gameObject);
 
         await InitializeAnalytics();
     }
@@ -28,17 +26,16 @@ public class AnalyticsManager : MonoBehaviour
     {
         try
         {
-            // 1. Initialize connection to Unity Cloud
-            await UnityServices.InitializeAsync();
+            // Check if services are already initialized
+            if (UnityServices.State != ServicesInitializationState.Initialized)
+            {
+                await UnityServices.InitializeAsync();
+            }
             
-            // 2. Start Data Collection 
-            // Note: In a real release, you should show a GDPR/CCPA consent popup first.
-            // For now, we auto-accept to get data flowing.
+            // Start Collection (Required for UGS)
             AnalyticsService.Instance.StartDataCollection();
 
             Debug.Log("✅ Analytics Initialized! Tracking started.");
-            
-            // Optional: Track that the game app was opened
             TrackEvent("app_started");
         }
         catch (System.Exception e)
@@ -48,55 +45,56 @@ public class AnalyticsManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Links the current player session to a specific Solana Wallet Address.
-    /// Call this immediately after the user logs in.
+    /// Logs the login event with the Wallet Address.
     /// </summary>
-    public void SetUserWallet(string walletAddress)
+    public void TrackWalletLogin(string walletAddress)
     {
-        if (UnityServices.State == ServicesInitializationState.Initialized)
-        {
-            try
-            {
-                // This replaces the anonymous ID with the Wallet Address in your dashboard
-                UnityServices.ExternalUserId = walletAddress;
-                Debug.Log($"🔗 Analytics Linked to Wallet: {walletAddress}");
-                
-                // Track a specific login event so you know they are authenticated
-                TrackEvent("wallet_login", new Dictionary<string, object> {
-                    { "wallet_address", walletAddress }
-                });
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogError("Failed to set external user ID: " + e.Message);
-            }
-        }
+        Debug.Log($"🔗 Tracking Login for Wallet: {walletAddress}");
+
+        // Track the login event with the address as data
+        TrackEvent("wallet_login", new Dictionary<string, object> {
+            { "wallet_address", walletAddress }
+        });
     }
 
     /// <summary>
-    /// Helper to send custom events to the dashboard.
-    /// Example: AnalyticsManager.Instance.TrackEvent("level_complete");
+    /// Sends a custom event to the Unity Dashboard.
     /// </summary>
     public void TrackEvent(string eventName, Dictionary<string, object> parameters = null)
     {
+        // Only run if Unity Services are ready
         if (UnityServices.State == ServicesInitializationState.Initialized)
         {
-            if (parameters == null)
+            try 
             {
-                AnalyticsService.Instance.RecordEvent(eventName);
-            }
-            else
-            {
-                var customEvent = new Dictionary<string, object> { { "eventName", eventName } };
-                foreach (var param in parameters)
+                if (parameters == null)
                 {
-                    customEvent[param.Key] = param.Value;
+                    // Send event with no parameters
+                    AnalyticsService.Instance.RecordEvent(eventName);
                 }
-                AnalyticsService.Instance.RecordEvent(eventName);
+                else
+                {
+                    // The UGS Analytics SDK used here doesn't expose a RecordEvent overload that
+                    // accepts a Dictionary<string, object>, so serialize the parameters into a
+                    // compact string and append it to the event name.
+                    var payloadSb = new System.Text.StringBuilder();
+                    foreach (var kv in parameters)
+                    {
+                        if (kv.Value == null) continue;
+                        payloadSb.Append(kv.Key).Append('=').Append(kv.Value.ToString()).Append(';');
+                    }
+                    var payload = payloadSb.ToString();
+                    var composedEvent = string.IsNullOrEmpty(payload) ? eventName : $"{eventName}::{payload}";
+                    AnalyticsService.Instance.RecordEvent(composedEvent);
+                }
+                
+                // Force upload immediately (Great for testing, remove for Release)
+                AnalyticsService.Instance.Flush(); 
             }
-            
-            // Force upload immediately (useful during development/testing)
-            AnalyticsService.Instance.Flush(); 
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"Analytics Error: {e.Message}");
+            }
         }
     }
 }
