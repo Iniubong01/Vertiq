@@ -16562,7 +16562,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1289778210
 RectTransform:
   m_ObjectHideFlags: 0
@@ -17988,7 +17988,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1393770004
 RectTransform:
   m_ObjectHideFlags: 0
@@ -18374,7 +18374,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1457018970
 RectTransform:
   m_ObjectHideFlags: 0
@@ -21101,7 +21101,7 @@ MonoBehaviour:
   playTokenMintAddress: PLAYs3GSSadH2q2JLS7djp7yzeT75NK78XgrE5YLrfq
   playTokenPrice: 1
   coinsRewardAmount: 125
-  priceShield: 305
+  priceShield: 1
   priceBullets: 311
   priceFullLives: 275
   priceFreezeTime: 320

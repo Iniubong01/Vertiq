@@ -4,6 +4,7 @@ using Solana.Unity.Rpc.Models;
 using Solana.Unity.Rpc.Types; 
 using Solana.Unity.Programs;
 using Solana.Unity.Wallet;
+using Solana.Unity.Rpc.Core.Http; // [FIX] Added for RequestResult
 using System.Collections.Generic;
 using System;
 using System.Threading.Tasks;
@@ -50,15 +51,23 @@ public class MarketplacePurchase : MonoBehaviour
 
         bool isToken = !string.IsNullOrEmpty(mintAddress);
         
-        // Get the active wallet account
-        var wallet = Web3.Wallet;
-        if (wallet == null || wallet.Account == null)
+        // Unified Wallet Check (Editor vs Mobile)
+        PublicKey buyerKey = WalletConnector.UserPublicKey;
+        Account editorAccount = WalletConnector.PlayerAccount;
+
+        if (buyerKey == null)
         {
-            ShowPopup("Wallet", "Connect wallet first.", Color.red);
-            return;
+            if (Web3.Wallet != null && Web3.Wallet.Account != null)
+            {
+                buyerKey = Web3.Wallet.Account.PublicKey;
+            }
+            else
+            {
+                ShowPopup("Wallet", "Connect wallet first.", Color.red);
+                return;
+            }
         }
 
-        PublicKey buyerKey = wallet.Account.PublicKey;
         PublicKey sellerKey = new PublicKey(sellerWallet);
         PublicKey sourceTokenKey = null;
         int tokenDecimals = 9;
@@ -138,7 +147,6 @@ public class MarketplacePurchase : MonoBehaviour
         {
             var instructions = new List<TransactionInstruction>();
             
-            // Add compute budget instructions
             instructions.Add(ComputeBudgetProgram.SetComputeUnitLimit(300_000));
             instructions.Add(ComputeBudgetProgram.SetComputeUnitPrice(100_000));
 
@@ -147,13 +155,11 @@ public class MarketplacePurchase : MonoBehaviour
                 PublicKey tokenMint = new PublicKey(mintAddress);
                 ulong amountRaw = (ulong)(amount * Math.Pow(10, tokenDecimals));
                 
-                // Find or create seller's token account
                 var dest = await FindTokenAccountBroad(sellerKey, tokenMint.ToString());
                 PublicKey destTokenAccount = dest.PublicKey;
                 
                 if (destTokenAccount == null)
                 {
-                    // Create associated token account for seller if it doesn't exist
                     destTokenAccount = AssociatedTokenAccountProgram.DeriveAssociatedTokenAccount(sellerKey, tokenMint);
                     instructions.Add(
                         AssociatedTokenAccountProgram.CreateAssociatedTokenAccount(
@@ -164,30 +170,27 @@ public class MarketplacePurchase : MonoBehaviour
                     );
                 }
 
-                // Add token transfer instruction - correct parameter order
                 instructions.Add(
                     TokenProgram.Transfer(
-                        sourceTokenKey,      // source
-                        destTokenAccount,    // destination
-                        amountRaw,          // amount
-                        buyerKey            // owner
+                        sourceTokenKey,      
+                        destTokenAccount,    
+                        amountRaw,          
+                        buyerKey            
                     )
                 );
             }
             else
             {
-                // SOL transfer
                 ulong lamports = (ulong)(amount * 1_000_000_000);
                 instructions.Add(
                     SystemProgram.Transfer(
-                        buyerKey,   // from
-                        sellerKey,  // to
-                        lamports    // amount
+                        buyerKey,   
+                        sellerKey,  
+                        lamports    
                     )
                 );
             }
 
-            // Get recent blockhash
             var blockHashResult = await Web3.Rpc.GetLatestBlockHashAsync(Commitment.Finalized);
             if (!blockHashResult.WasSuccessful) 
             { 
@@ -200,7 +203,6 @@ public class MarketplacePurchase : MonoBehaviour
             // ---------------------------------------------------------
             ShowPopup("Wallet", "Please sign transaction...", Color.yellow);
 
-            // Create the transaction properly
             var transaction = new Transaction
             {
                 RecentBlockHash = blockHashResult.Result.Value.Blockhash,
@@ -208,11 +210,35 @@ public class MarketplacePurchase : MonoBehaviour
                 Instructions = instructions
             };
 
-            // Sign and send using the wallet adapter
-            var result = await wallet.SignAndSendTransaction(transaction);
+            RequestResult<string> result = null;
 
-            // Handle result
-            HandleTransactionResult(result.WasSuccessful, result.Reason, onSuccess);
+            if (editorAccount != null)
+            {
+                // PATH A: EDITOR (Sticky Wallet)
+                // 1. Sign
+                var signature = editorAccount.Sign(transaction.CompileMessage());
+                transaction.AddSignature(editorAccount.PublicKey, signature);
+                
+                // 2. Serialize to Base64 String [FIXED]
+                byte[] txBytes = transaction.Serialize();
+                string txBase64 = Convert.ToBase64String(txBytes);
+
+                // 3. Send using the String overload
+                result = await Web3.Rpc.SendTransactionAsync(txBase64);
+            }
+            else if (Web3.Wallet != null)
+            {
+                // PATH B: MOBILE (Adapter)
+                // This method expects the Transaction Object
+                result = await Web3.Wallet.SignAndSendTransaction(transaction);
+            }
+            else
+            {
+                ShowPopup("Error", "No signing method found.", Color.red);
+                return;
+            }
+
+            HandleTransactionResult(result != null && result.WasSuccessful, result != null ? result.Reason : "Unknown error", onSuccess);
         }
         catch (Exception ex)
         {

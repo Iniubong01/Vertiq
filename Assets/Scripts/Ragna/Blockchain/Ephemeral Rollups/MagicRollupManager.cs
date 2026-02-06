@@ -77,21 +77,22 @@ public class MagicRollupManager : MonoBehaviour
 
         Debug.Log("Initializing Vortiq Account on MAINNET...");
         
+        // Generate a new keypair for the randomness account
         var newAccount = new Account(); 
         _randomnessAccount = newAccount.PublicKey;
 
         try 
         {
+            // FIXED: No signing accounts needed - the RandomnessState is writable but not a signer
+            // Only the Payer (user wallet) needs to sign
             var result = await _programL1.InitializeAsync(
                 accounts: new Vortiq.Program.InitializeAccounts {
                     RandomnessState = _randomnessAccount,
                     Payer = account.PublicKey,
                     SystemProgram = SystemProgram.ProgramIdKey
                 },
-                // Aux Signer: New Account
-                signingAccounts: new [] { newAccount }, 
-                // Explicit Payer: Your User Account (for manual signing fallback)
-                payerAccount: account,
+                signingAccounts: null,  // No auxiliary signers needed
+                payerAccount: account,  // Only the payer signs
                 commitment: Commitment.Confirmed
             );
 
@@ -102,7 +103,7 @@ public class MagicRollupManager : MonoBehaviour
         }
         catch (System.Exception ex)
         {
-            Debug.LogError($"❌ Crash: {ex.Message}");
+            Debug.LogError($"❌ Crash: {ex.Message}\n{ex.StackTrace}");
         }
     }
 
@@ -130,8 +131,8 @@ public class MagicRollupManager : MonoBehaviour
                     SlotHashes = new PublicKey("SysvarS1otHashes111111111111111111111111111")
                 },
                 kill_count: 0,
-                // Explicit Payer: Your User Account (for manual signing fallback)
-                payerAccount: account,
+                signingAccounts: null,  // No auxiliary signers
+                payerAccount: account,  // Only the payer signs
                 commitment: Commitment.Processed 
             );
             
@@ -142,7 +143,7 @@ public class MagicRollupManager : MonoBehaviour
         }
         catch (System.Exception ex)
         {
-            Debug.LogError($"❌ Crash: {ex.Message}");
+            Debug.LogError($"❌ Crash: {ex.Message}\n{ex.StackTrace}");
         }
     }
 }

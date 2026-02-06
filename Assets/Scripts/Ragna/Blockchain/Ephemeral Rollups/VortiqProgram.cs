@@ -65,39 +65,47 @@ namespace Vortiq
         {
         }
 
-        // --- SMART TRANSACTION HANDLER ---
+        // --- IMPROVED SMART TRANSACTION HANDLER ---
         private async Task<RequestResult<string>> SmartSignAndSend(
             Transaction tx, 
             IEnumerable<Account> auxiliarySigners, 
             Account explicitPayer,                 
             Commitment commitment)
         {
-            // 1. Sign with auxiliary accounts (e.g. the new account being created)
-            if (auxiliarySigners != null)
+            // 1. Sign with auxiliary accounts first (if any)
+            //    These are accounts that need to sign but are NOT the fee payer
+            //    Example: When creating a new account that must sign for initialization
+            if (auxiliarySigners != null && auxiliarySigners.Any())
             {
-                tx.Sign(auxiliarySigners.ToList());
+                var signersList = auxiliarySigners.ToList();
+                UnityEngine.Debug.Log($"[VortiqClient] Signing with {signersList.Count} auxiliary signer(s)");
+                tx.PartialSign(signersList);
             }
 
-            // 2. CHECK: Is there a Global Wallet (Mobile/Web/Phantom)?
+            // 2. CHECK: Is there a Global Wallet (Mobile/WebGL/Phantom)?
             if (Web3.Wallet != null)
             {
-                // FIX: Added 'false' for skipPreflight to match SDK signature
-                return await Web3.Wallet.SignAndSendTransaction(tx, false, commitment);
+                UnityEngine.Debug.Log("[VortiqClient] Using Web3.Wallet for signing (WebGL/Mobile/Phantom)");
+                // Sign and send using the wallet adapter (handles platform-specific signing)
+                return await Web3.Wallet.SignAndSendTransaction(tx, skipPreflight: false, commitment);
             }
 
-            // 3. FALLBACK: Editor / Local Wallet
+            // 3. FALLBACK: Editor / Local Wallet (Direct Account signing)
             if (explicitPayer != null)
             {
+                UnityEngine.Debug.Log("[VortiqClient] Using explicit payer account for signing (Editor mode)");
                 tx.Sign(explicitPayer);
                 
-                // FIX: Convert to Base64 String
+                // Serialize and send
                 var base64Tx = Convert.ToBase64String(tx.Serialize());
-                
-                // FIX: Added 'false' for skipPreflight
-                return await RpcClient.SendTransactionAsync(base64Tx, false, commitment);
+                return await RpcClient.SendTransactionAsync(base64Tx, skipPreflight: false, commitment);
             }
 
-            throw new Exception("Cannot send transaction: Web3.Wallet is null (Editor?) and no explicitPayer account was provided.");
+            // 4. ERROR: No signing method available
+            throw new Exception(
+                "❌ Cannot send transaction: No signing method available. " +
+                "Web3.Wallet is null (are you in Editor without a wallet?) and no explicitPayer account was provided."
+            );
         }
 
         public async Task<RequestResult<string>> InitializeAsync(
@@ -109,14 +117,22 @@ namespace Vortiq
         {
             var instr = Program.VortiqProgram.Initialize(accounts, programId);
             var blockHash = await RpcClient.GetLatestBlockHashAsync(commitment);
-            
-            var tx = new Transaction {
+
+            if (!blockHash.WasSuccessful)
+            {
+                UnityEngine.Debug.LogError($"❌ Failed to get blockhash: {blockHash.Reason}");
+                throw new Exception($"Failed to get blockhash: {blockHash.Reason}");
+            }
+
+            var tx = new Transaction
+            {
                 RecentBlockHash = blockHash.Result.Value.Blockhash,
                 FeePayer = accounts.Payer,
                 Instructions = new List<TransactionInstruction> { instr }
             };
 
             return await SmartSignAndSend(tx, signingAccounts, payerAccount, commitment);
+
         }
 
         public async Task<RequestResult<string>> RequestRandomnessAsync(
@@ -129,14 +145,22 @@ namespace Vortiq
         {
             var instr = Program.VortiqProgram.RequestRandomness(accounts, kill_count, programId);
             var blockHash = await RpcClient.GetLatestBlockHashAsync(commitment);
-            
-            var tx = new Transaction {
+
+            if (!blockHash.WasSuccessful)
+            {
+                UnityEngine.Debug.LogError($"❌ Failed to get blockhash: {blockHash.Reason}");
+                throw new Exception($"Failed to get blockhash: {blockHash.Reason}");
+            }
+
+            var tx = new Transaction
+            {
                 RecentBlockHash = blockHash.Result.Value.Blockhash,
                 FeePayer = accounts.Payer,
                 Instructions = new List<TransactionInstruction> { instr }
             };
 
             return await SmartSignAndSend(tx, signingAccounts, payerAccount, commitment);
+
         }
 
         public async Task<RequestResult<string>> ConsumeRandomnessAsync(
@@ -149,13 +173,22 @@ namespace Vortiq
         {
             var instr = Program.VortiqProgram.ConsumeRandomness(accounts, randomness, programId);
             var blockHash = await RpcClient.GetLatestBlockHashAsync(commitment);
-            var tx = new Transaction {
+
+            if (!blockHash.WasSuccessful)
+            {
+                UnityEngine.Debug.LogError($"❌ Failed to get blockhash: {blockHash.Reason}");
+                throw new Exception($"Failed to get blockhash: {blockHash.Reason}");
+            }
+
+            var tx = new Transaction
+            {
                 RecentBlockHash = blockHash.Result.Value.Blockhash,
                 FeePayer = accounts.Payer,
                 Instructions = new List<TransactionInstruction> { instr }
             };
 
             return await SmartSignAndSend(tx, signingAccounts, payerAccount, commitment);
+
         }
 
         // --- DATA METHODS (UNCHANGED) ---
@@ -292,4 +325,4 @@ namespace Vortiq
             }
         }
     }
-}
+} 
