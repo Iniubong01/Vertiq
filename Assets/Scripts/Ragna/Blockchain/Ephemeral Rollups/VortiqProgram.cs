@@ -94,11 +94,22 @@ namespace Vortiq
             if (explicitPayer != null)
             {
                 UnityEngine.Debug.Log("[VortiqClient] Using explicit payer account for signing (Editor mode)");
-                tx.Sign(explicitPayer);
                 
-                // Serialize and send
-                var base64Tx = Convert.ToBase64String(tx.Serialize());
-                return await RpcClient.SendTransactionAsync(base64Tx, skipPreflight: false, commitment);
+                // CRITICAL FIX: Match the MarketplacePurchase pattern EXACTLY
+                // 1. Sign the compiled message
+                var signature = explicitPayer.Sign(tx.CompileMessage());
+                
+                // 2. Add the signature to the transaction
+                tx.AddSignature(explicitPayer.PublicKey, signature);
+                
+                // 3. Serialize to byte array first, then Base64
+                byte[] txBytes = tx.Serialize();
+                string txBase64 = Convert.ToBase64String(txBytes);
+                
+                UnityEngine.Debug.Log($"[VortiqClient] Transaction serialized, length: {txBytes.Length} bytes");
+                
+                // 4. CRITICAL: Use Web3.Rpc instead of RpcClient (matches MarketplacePurchase)
+                return await Web3.Rpc.SendTransactionAsync(txBase64);
             }
 
             // 4. ERROR: No signing method available
@@ -117,22 +128,20 @@ namespace Vortiq
         {
             var instr = Program.VortiqProgram.Initialize(accounts, programId);
             var blockHash = await RpcClient.GetLatestBlockHashAsync(commitment);
-
+            
             if (!blockHash.WasSuccessful)
             {
                 UnityEngine.Debug.LogError($"❌ Failed to get blockhash: {blockHash.Reason}");
-                throw new Exception($"Failed to get blockhash: {blockHash.Reason}");
+                return null; // Let the caller handle null result
             }
-
-            var tx = new Transaction
-            {
+            
+            var tx = new Transaction {
                 RecentBlockHash = blockHash.Result.Value.Blockhash,
                 FeePayer = accounts.Payer,
                 Instructions = new List<TransactionInstruction> { instr }
             };
 
             return await SmartSignAndSend(tx, signingAccounts, payerAccount, commitment);
-
         }
 
         public async Task<RequestResult<string>> RequestRandomnessAsync(
@@ -145,22 +154,20 @@ namespace Vortiq
         {
             var instr = Program.VortiqProgram.RequestRandomness(accounts, kill_count, programId);
             var blockHash = await RpcClient.GetLatestBlockHashAsync(commitment);
-
+            
             if (!blockHash.WasSuccessful)
             {
                 UnityEngine.Debug.LogError($"❌ Failed to get blockhash: {blockHash.Reason}");
-                throw new Exception($"Failed to get blockhash: {blockHash.Reason}");
+                return null; // Let the caller handle null result
             }
-
-            var tx = new Transaction
-            {
+            
+            var tx = new Transaction {
                 RecentBlockHash = blockHash.Result.Value.Blockhash,
                 FeePayer = accounts.Payer,
                 Instructions = new List<TransactionInstruction> { instr }
             };
 
             return await SmartSignAndSend(tx, signingAccounts, payerAccount, commitment);
-
         }
 
         public async Task<RequestResult<string>> ConsumeRandomnessAsync(
@@ -173,22 +180,20 @@ namespace Vortiq
         {
             var instr = Program.VortiqProgram.ConsumeRandomness(accounts, randomness, programId);
             var blockHash = await RpcClient.GetLatestBlockHashAsync(commitment);
-
+            
             if (!blockHash.WasSuccessful)
             {
                 UnityEngine.Debug.LogError($"❌ Failed to get blockhash: {blockHash.Reason}");
-                throw new Exception($"Failed to get blockhash: {blockHash.Reason}");
+                return null; // Let the caller handle null result
             }
-
-            var tx = new Transaction
-            {
+            
+            var tx = new Transaction {
                 RecentBlockHash = blockHash.Result.Value.Blockhash,
                 FeePayer = accounts.Payer,
                 Instructions = new List<TransactionInstruction> { instr }
             };
 
             return await SmartSignAndSend(tx, signingAccounts, payerAccount, commitment);
-
         }
 
         // --- DATA METHODS (UNCHANGED) ---
@@ -325,4 +330,4 @@ namespace Vortiq
             }
         }
     }
-} 
+}

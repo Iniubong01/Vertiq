@@ -458,9 +458,36 @@ public class JupiterSwapManager : MonoBehaviour
 
     private async void ExecuteSwap()
     {
-        if (currentQuote == null || WalletConnector.UserPublicKey == null) return;
-        
-        // CRITICAL: Final balance check before swap
+        if (currentQuote == null) return;
+
+        // ---------------------------------------------------------
+        // UNIFIED WALLET RESOLUTION (Match Marketplace Script)
+        // ---------------------------------------------------------
+        PublicKey buyerKey = WalletConnector.UserPublicKey;
+        Account editorAccount = WalletConnector.PlayerAccount;
+
+        if (buyerKey == null)
+        {
+            if (Web3.Wallet != null && Web3.Wallet.Account != null)
+            {
+                buyerKey = Web3.Wallet.Account.PublicKey;
+            }
+            // Check for Editor/WebGL sticky account if WalletConnector is null
+            else if (Web3.Account != null)
+            {
+                buyerKey = Web3.Account.PublicKey;
+                editorAccount = Web3.Account;
+            }
+            else
+            {
+                ShowPopup("Wallet", "Connect wallet first.", Color.red);
+                return;
+            }
+        }
+
+        // ---------------------------------------------------------
+        // VALIDATION
+        // ---------------------------------------------------------
         string inputToken = GetSelectedToken(inputTokenDropdown);
         if (!float.TryParse(inputAmountField.text, out float swapAmount))
         {
@@ -481,6 +508,7 @@ public class JupiterSwapManager : MonoBehaviour
 
         try
         {
+            // 1. Get the raw transaction from Jupiter
             string txBase64 = await GetSwapTransaction(currentQuote);
             if (string.IsNullOrEmpty(txBase64)) 
             { 
@@ -490,11 +518,56 @@ public class JupiterSwapManager : MonoBehaviour
             }
 
             ShowPopup("Confirm Swap", "Processing...", Color.yellow);
-            await SignAndSendTransaction(txBase64);
+
+            // 2. Deserialize the transaction
+            byte[] txBytes = Convert.FromBase64String(txBase64);
+            var transaction = Transaction.Deserialize(txBytes);
+            RequestResult<string> result = null;
+
+            // ---------------------------------------------------------
+            // SIGN AND SEND PATHWAYS
+            // ---------------------------------------------------------
+            if (editorAccount != null)
+            {
+                // PATH A: EDITOR / WEBGL (Sticky Wallet)
+                // Use the exact signing pattern from your Marketplace script
+                var signature = editorAccount.Sign(transaction.CompileMessage());
+                transaction.AddSignature(editorAccount.PublicKey, signature);
+                
+                byte[] signedTxBytes = transaction.Serialize();
+                string signedTxBase64 = Convert.ToBase64String(signedTxBytes);
+
+                result = await Web3.Rpc.SendTransactionAsync(signedTxBase64);
+            }
+            else if (Web3.Wallet != null)
+            {
+                // PATH B: MOBILE (Adapter)
+                result = await Web3.Wallet.SignAndSendTransaction(transaction);
+            }
+            else
+            {
+                ShowPopup("Error", "No signing method found.", Color.red);
+                swapButton.interactable = true;
+                return;
+            }
+
+            // 3. Handle result
+            if (result != null && result.WasSuccessful)
+            {
+                HandleSwapSuccess(result.Result);
+            }
+            else
+            {
+                string reason = result != null ? result.Reason : "Unknown error";
+                Debug.LogError($"Swap failed: {reason}");
+                ShowPopup("Failed", "Transaction failed.", Color.red);
+                swapButton.interactable = true;
+            }
         }
         catch (Exception ex) 
         { 
-            ShowPopup("Failed", ex.Message, Color.red); 
+            Debug.LogError($"[Jupiter] Execution Error: {ex.Message}");
+            ShowPopup("Failed", "Transaction error occurred.", Color.red); 
             swapButton.interactable = true;
         }
     }

@@ -4,10 +4,14 @@ using Unity.Services.Core;
 using Unity.Services.Authentication;
 using Unity.Services.Leaderboards;
 using Solana.Unity.Wallet;
+using System.Collections.Generic; // Required for Metadata dictionary
 
 public class DualLeaderboardManager : MonoBehaviour
 {
     public static DualLeaderboardManager Instance { get; private set; }
+
+    [Header("Web3 Setup")]
+    public SoarLeaderboardManager soarManager; 
 
     [Header("Web2 Setup")]
     public string unityLeaderboardId = "vortiq_leaderboard"; 
@@ -25,44 +29,42 @@ public class DualLeaderboardManager : MonoBehaviour
 
     private async void Start()
     {
-        try 
+        try { await UnityServices.InitializeAsync(); }
+        catch (System.Exception e) { Debug.LogError($"Unity Services Init Error: {e.Message}"); }
+    }
+
+    public async Task SetUsername(string newUsername)
+    {
+        if (string.IsNullOrEmpty(newUsername)) return;
+        PlayerPrefs.SetString("PlayerUsername", newUsername);
+        PlayerPrefs.Save();
+
+        if (AuthenticationService.Instance.IsSignedIn)
         {
-            await UnityServices.InitializeAsync();
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError($"Unity Services Init Error: {e.Message}");
+            await AuthenticationService.Instance.UpdatePlayerNameAsync(newUsername);
         }
     }
 
-    // [NEW] Call this as soon as the Wallet connects!
     public async void LoginToUnity(string walletAddress)
     {
         if (AuthenticationService.Instance.IsSignedIn) return;
 
         try
         {
-            // Truncate Wallet Address to 30 chars for Profile Name
+            // Login Logic
             string profileName = walletAddress.Length > 30 ? walletAddress.Substring(0, 30) : walletAddress;
-            
-            Debug.Log($"[Web2] Logging in with Profile: {profileName}");
-            
-            // Switch to the specific user profile for this wallet
             AuthenticationService.Instance.SwitchProfile(profileName);
-            
-            // Sign in
             await AuthenticationService.Instance.SignInAnonymouslyAsync();
 
-            // Update Name
-            string shortName = walletAddress.Substring(0, 4) + "..." + walletAddress.Substring(walletAddress.Length - 4);
-            await AuthenticationService.Instance.UpdatePlayerNameAsync(shortName);
-
-            Debug.Log("[Web2] Login Successful!");
+            // Set Name Logic
+            string displayName = PlayerPrefs.GetString("PlayerUsername", "");
+            if (string.IsNullOrEmpty(displayName))
+            {
+                displayName = walletAddress.Substring(0, 4) + "..." + walletAddress.Substring(walletAddress.Length - 4);
+            }
+            await AuthenticationService.Instance.UpdatePlayerNameAsync(displayName);
         }
-        catch (System.Exception e)
-        {
-            Debug.LogError($"[Web2] Login Failed: {e.Message}");
-        }
+        catch (System.Exception e) { Debug.LogError($"[Web2] Login Failed: {e.Message}"); }
     }
 
     public async void SubmitScoreHybrid(long score)
@@ -70,28 +72,41 @@ public class DualLeaderboardManager : MonoBehaviour
         if (WalletConnector.UserPublicKey == null) return;
         string walletAddress = WalletConnector.UserPublicKey.ToString();
 
-        // Ensure we are logged in before submitting
         if (!AuthenticationService.Instance.IsSignedIn)
         {
             LoginToUnity(walletAddress);
-            await Task.Delay(1000); // Small wait for login to finish
+            await Task.Delay(1000);
         }
 
-        // --- PATH A: WEB2 ---
         try 
         {
-            var response = await LeaderboardsService.Instance.AddPlayerScoreAsync(unityLeaderboardId, score);
-            Debug.Log($"[Web2] Score Uploaded! Rank: {response.Rank}");
+            // 1. Get Avatar Index
+            int avatarIndex = 0;
+            if (ProfilePictureManager.Instance != null)
+            {
+                avatarIndex = ProfilePictureManager.Instance.CurrentAvatarIndex;
+                // If Custom (-1), fallback to 0 for global leaderboard
+                if (avatarIndex < 0) avatarIndex = 0; 
+            }
+
+            // 2. Prepare Metadata (Wallet + Avatar)
+            var metadata = new Dictionary<string, string> { 
+                { "wallet", walletAddress },
+                { "avatar", avatarIndex.ToString() } 
+            };
+            
+            // 3. Submit
+            var options = new AddPlayerScoreOptions { Metadata = metadata };
+            var response = await LeaderboardsService.Instance.AddPlayerScoreAsync(unityLeaderboardId, score, options);
+            
+            Debug.Log($"[Web2] Score Uploaded! Rank: {response.Rank} | Avatar: {avatarIndex}");
         }
         catch (System.Exception e)
         {
             Debug.LogError($"[Web2] Failed: {e.Message}");
         }
 
-        // Analytics Tracking
         if (AnalyticsManager.Instance != null)
-        {
             AnalyticsManager.Instance.TrackWalletLogin(walletAddress);
-        }
     }
 }

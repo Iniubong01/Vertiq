@@ -14,8 +14,10 @@ public class WalletConnector : MonoBehaviour
     [Header("UI References")]
     public GameObject loginPanel;
     public GameObject loginPanel2;
+    public GameObject loginPanel3;
     public GameObject connectedPanel;
     public GameObject connectedPanel2;
+    public GameObject connectedPanel3;
 
     public TMP_Text addressText;
     public TMP_Text addressText2;
@@ -154,8 +156,10 @@ public class WalletConnector : MonoBehaviour
     {
         if (loginPanel != null) loginPanel.SetActive(showLogin);
         if (loginPanel2 != null) loginPanel2.SetActive(showLogin);
+        if (loginPanel3 != null) loginPanel3.SetActive(showLogin);
         if (connectedPanel != null) connectedPanel.SetActive(showConnected);
         if (connectedPanel2 != null) connectedPanel2.SetActive(showConnected);
+        if (connectedPanel3 != null) connectedPanel3.SetActive(showConnected);
     }
 
     public void CopyAddressToClipboard()

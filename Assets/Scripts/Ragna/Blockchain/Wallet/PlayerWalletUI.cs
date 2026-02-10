@@ -8,7 +8,7 @@ public class PlayerWalletUI : MonoBehaviour
 {
     [Header("UI References")]
     public TextMeshProUGUI solBalanceText;
-    public TextMeshProUGUI solBalanceText2;
+    public TextMeshProUGUI solBalanceText2; 
     public TextMeshProUGUI tokenBalanceText;
     public TextMeshProUGUI tokenBalanceText2;
 

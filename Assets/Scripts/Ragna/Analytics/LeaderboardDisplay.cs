@@ -1,86 +1,154 @@
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.UI; 
 using TMPro;
 using System.Collections.Generic;
 using Unity.Services.Leaderboards;
-using System.Threading.Tasks;
+using Unity.Services.Authentication; 
+using Newtonsoft.Json; 
 
 public class LeaderboardDisplay : MonoBehaviour
 {
     [Header("Configuration")]
     public string leaderboardId = "vortiq_leaderboard";
-    public GameObject rowPrefab;
     public Transform contentContainer;
-    //public GameObject loadingSpinner; // Optional: A spinning icon
+    
+    [Header("Row Prefabs")]
+    public GameObject firstPlacePrefab;   
+    public GameObject secondPlacePrefab;  
+    public GameObject thirdPlacePrefab;
+    
+    [Header("Standard Rows")]
+    public GameObject standardPrefab;       // For normal players (Rank 4+)
+    public GameObject standardMePrefab;     // For YOU (Rank 4+)
 
-    [Header("Pagination")]
-    public int maxScoresToFetch = 50;
+    [Header("Assets")]
+    public Sprite[] avatarIcons; 
 
-    // Call this when you open the Leaderboard UI
     public async void RefreshLeaderboard()
     {
-        // [FIX] Safety Check
-        if (!Unity.Services.Authentication.AuthenticationService.Instance.IsSignedIn)
-        {
-            Debug.LogError("Cannot fetch leaderboard: Not signed in to Unity Services yet.");
-            return; // Stop here to prevent the error
-        }
-        
-        // 1. Clear old data
-        foreach (Transform child in contentContainer)
-        {
-            Destroy(child.gameObject);
-        }
+        if (!AuthenticationService.Instance.IsSignedIn) return;
 
-        //if (loadingSpinner != null) loadingSpinner.SetActive(true);
+        foreach (Transform child in contentContainer) Destroy(child.gameObject);
 
         try
         {
-            // 2. Fetch scores from Unity
             var scoresResponse = await LeaderboardsService.Instance.GetScoresAsync(
                 leaderboardId, 
-                new GetScoresOptions { Limit = maxScoresToFetch }
+                new GetScoresOptions { Limit = 50, IncludeMetadata = true }
             );
 
-            // 3. Loop through and create rows
+            string myPlayerId = AuthenticationService.Instance.PlayerId;
+
             foreach (var entry in scoresResponse.Results)
             {
-                CreateLeaderboardRow(entry.Rank + 1, entry.PlayerName, entry.Score);
+                int avatarIndex = 0; 
+                if (!string.IsNullOrEmpty(entry.Metadata))
+                {
+                    try 
+                    {
+                        var data = JsonConvert.DeserializeObject<Dictionary<string, string>>(entry.Metadata);
+                        if (data.ContainsKey("avatar")) int.TryParse(data["avatar"], out avatarIndex);
+                    }
+                    catch {}
+                }
+
+                bool isMe = (entry.PlayerId == myPlayerId);
+                CreateLeaderboardRow(entry.Rank + 1, entry.PlayerName, entry.Score, avatarIndex, isMe);
             }
         }
-        catch (System.Exception e)
-        {
-            Debug.LogError($"Failed to fetch leaderboard: {e.Message}");
-        }
-        finally
-        {
-            //if (loadingSpinner != null) loadingSpinner.SetActive(false);
-        }
+        catch (System.Exception e) { Debug.LogError($"Fetch Failed: {e.Message}"); }
     }
 
-    private void CreateLeaderboardRow(int rank, string playerName, double score)
+    private void CreateLeaderboardRow(int rank, string playerName, double score, int avatarIndex, bool isMe)
     {
-        GameObject newRow = Instantiate(rowPrefab, contentContainer);
-        
-        // Find Text Components (Assuming you named them correctly or they are in order)
-        // Better way: Create a small script for the Row, but this works for simple setups
-        TextMeshProUGUI[] texts = newRow.GetComponentsInChildren<TextMeshProUGUI>();
+        // 1. CHOOSE PREFAB
+        GameObject prefabToUse = standardPrefab; 
 
-        if (texts.Length >= 3)
-        {
-            texts[0].text = rank.ToString(); // Rank
-            
-            // Clean up the name (remove the #1234 tag if it exists)
-            string displayName = playerName;
-            if (displayName.Contains("#")) 
-                displayName = displayName.Split('#')[0];
-            
-            texts[1].text = displayName;     // Name
-            texts[2].text = score.ToString(); // Score
-        }
+        if (rank == 1 && firstPlacePrefab != null) 
+            prefabToUse = firstPlacePrefab;
+        else if (rank == 2 && secondPlacePrefab != null) 
+            prefabToUse = secondPlacePrefab;
+        else if (rank == 3 && thirdPlacePrefab != null) 
+            prefabToUse = thirdPlacePrefab;
         else
         {
-            Debug.LogWarning("Row Prefab needs 3 TextMeshProUGUI components (Rank, Name, Score)");
+            // Rank 4 and below
+            if (isMe && standardMePrefab != null) 
+                prefabToUse = standardMePrefab; 
+            else 
+                prefabToUse = standardPrefab;
+        }
+
+        GameObject newRow = Instantiate(prefabToUse, contentContainer);
+        
+        // 2. DEFINE COLORS
+        Color rankColor = Color.white; 
+        if (rank == 1) rankColor = new Color(1f, 0.84f, 0f);            // GOLD
+        else if (rank == 2) rankColor = new Color(0.75f, 0.75f, 0.75f); // SILVER
+        else if (rank == 3) rankColor = new Color(0.8f, 0.5f, 0.2f);    // BRONZE
+
+        // 3. SET TEXT
+        TextMeshProUGUI[] texts = newRow.GetComponentsInChildren<TextMeshProUGUI>();
+        
+        if (texts.Length >= 3)
+        {
+            // --- RANK ---
+            texts[0].text = rank.ToString();
+            texts[0].color = rankColor; 
+
+            // --- NAME ---
+            string displayName = playerName;
+            if (displayName.Contains("#")) displayName = displayName.Split('#')[0];
+            
+            texts[1].color = Color.white; // Keep name white
+            
+            if (isMe) 
+            {
+                // Format: Name [YOU] (Pink)
+                texts[1].text = $"{displayName} <color=#FF00FF>[YOU]</color>"; 
+            }
+            else 
+            {
+                texts[1].text = displayName; 
+            }
+
+            // --- SCORE ---
+            texts[2].text = score.ToString();
+            texts[2].color = rankColor; 
+        }
+
+        // 4. SET AVATAR IMAGE
+        Image[] images = newRow.GetComponentsInChildren<Image>();
+        Image avatarImg = null;
+
+        foreach(var img in images)
+        {
+            if (img.gameObject != newRow && (img.gameObject.name.Contains("Avatar") || img.gameObject.name.Contains("Icon"))) 
+            {
+                avatarImg = img;
+                break;
+            }
+        }
+        
+        if (avatarImg == null && images.Length > 1) avatarImg = images[1];
+
+        if (avatarImg != null)
+        {
+            // [FIXED LOGIC HERE]
+            // Local Override for ME
+            if (isMe && ProfilePictureManager.Instance != null)
+            {
+                Sprite mySprite = ProfilePictureManager.Instance.GetCurrentSprite();
+                if (mySprite != null) avatarImg.sprite = mySprite;
+            }
+            // Remote Default for OTHERS
+            else
+            {
+                if (avatarIcons != null && avatarIndex >= 0 && avatarIndex < avatarIcons.Length)
+                {
+                    avatarImg.sprite = avatarIcons[avatarIndex];
+                }
+            }
         }
     }
 }
