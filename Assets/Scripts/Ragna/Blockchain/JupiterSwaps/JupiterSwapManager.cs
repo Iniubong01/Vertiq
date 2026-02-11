@@ -357,9 +357,9 @@ public class JupiterSwapManager : MonoBehaviour
         int feeBps = isValidFeeWallet ? Mathf.RoundToInt(platformFeePercent * 100) : 0;
         string feeParam = feeBps > 0 ? $"&platformFeeBps={feeBps}" : "";
 
-        // Use maxAccounts to limit route complexity; no legacy constraint so Jupiter can use
-        // versioned (v0) transactions with address lookup tables for smaller tx size
-        string routeParams = $"&maxAccounts={maxAccounts}";
+        // Use legacy transactions for mobile wallet compatibility; raw byte signing in editor
+        // path avoids the Deserialize/Serialize size inflation
+        string routeParams = $"&asLegacyTransaction=true&maxAccounts={maxAccounts}";
         if (onlyDirectRoutes) routeParams += "&onlyDirectRoutes=true";
 
         string url = $"{jupiterBaseUrl}/swap/v1/quote?inputMint={inputMint}&outputMint={outputMint}&amount={amountRaw}&slippageBps={slippageBps}{feeParam}{routeParams}";
@@ -564,6 +564,7 @@ public class JupiterSwapManager : MonoBehaviour
             quoteResponse = quote, 
             userPublicKey = WalletConnector.UserPublicKey.ToString(),
             wrapAndUnwrapSol = true,
+            asLegacyTransaction = true,
             dynamicComputeUnitLimit = true,
             computeUnitPriceMicroLamports = priorityFee,
             feeAccount = feeAccount 
@@ -599,52 +600,47 @@ public class JupiterSwapManager : MonoBehaviour
         try
         {
             byte[] txBytes = Convert.FromBase64String(txBase64);
-            Account editorAccount = WalletConnector.PlayerAccount;
             RequestResult<string> result = null;
 
-            if (editorAccount != null)
+#if UNITY_EDITOR
+            // PATH A: EDITOR - Sign raw bytes directly (no Deserialize/Serialize inflation)
+            // Transaction format: [numSignatures (1 byte)] [signatures (N * 64 bytes)] [message (remaining bytes)]
+            Account editorAccount = WalletConnector.PlayerAccount;
+            if (editorAccount == null)
             {
-                // PATH A: EDITOR - Sign raw bytes directly (works for both legacy AND versioned v0 transactions)
-                // Transaction format: [numSignatures (1 byte)] [signatures (N * 64 bytes)] [message (remaining bytes)]
-                ShowPopup("Wallet", "Signing with Editor Wallet...", Color.yellow);
-
-                int numSignatures = txBytes[0];
-                int messageOffset = 1 + (numSignatures * 64);
-                byte[] message = new byte[txBytes.Length - messageOffset];
-                Array.Copy(txBytes, messageOffset, message, 0, message.Length);
-
-                // Sign the message and write signature into the first slot (fee payer)
-                byte[] signature = editorAccount.Sign(message);
-                Array.Copy(signature, 0, txBytes, 1, 64);
-
-                string signedBase64 = Convert.ToBase64String(txBytes);
-                if (debugMode) Debug.Log($"[Jupiter] Signed tx: {txBytes.Length} bytes (no size change)");
-
-                result = await Web3.Rpc.SendTransactionAsync(signedBase64);
-            }
-            else if (Web3.Wallet != null)
-            {
-                // PATH B: MOBILE - Try legacy deserialization first, fall back to raw bytes
-                ShowPopup("Wallet", "Please sign on device...", Color.yellow);
-                try
-                {
-                    var transaction = Transaction.Deserialize(txBytes);
-                    result = await Web3.Wallet.SignAndSendTransaction(transaction);
-                }
-                catch (Exception deserializeEx)
-                {
-                    Debug.LogWarning($"[Jupiter] Legacy deserialize failed (versioned tx?): {deserializeEx.Message}");
-                    ShowPopup("Error", "Transaction format not supported by wallet", Color.red);
-                    swapButton.interactable = true;
-                    return;
-                }
-            }
-            else
-            {
-                ShowPopup("Error", "No valid wallet found.", Color.red);
+                ShowPopup("Error", "No editor wallet found.", Color.red);
                 swapButton.interactable = true;
                 return;
             }
+
+            ShowPopup("Wallet", "Signing with Editor Wallet...", Color.yellow);
+
+            int numSignatures = txBytes[0];
+            int messageOffset = 1 + (numSignatures * 64);
+            byte[] message = new byte[txBytes.Length - messageOffset];
+            Array.Copy(txBytes, messageOffset, message, 0, message.Length);
+
+            // Sign the message and write signature into the first slot (fee payer)
+            byte[] signature = editorAccount.Sign(message);
+            Array.Copy(signature, 0, txBytes, 1, 64);
+
+            if (debugMode) Debug.Log($"[Jupiter] Signed tx: {txBytes.Length} bytes (no size change)");
+
+            string signedBase64 = Convert.ToBase64String(txBytes);
+            result = await Web3.Rpc.SendTransactionAsync(signedBase64);
+#else
+            // PATH B: MOBILE (Android/iOS) - Use wallet adapter for native signing
+            if (Web3.Wallet == null)
+            {
+                ShowPopup("Error", "No wallet connected.", Color.red);
+                swapButton.interactable = true;
+                return;
+            }
+
+            ShowPopup("Wallet", "Please sign on device...", Color.yellow);
+            var transaction = Transaction.Deserialize(txBytes);
+            result = await Web3.Wallet.SignAndSendTransaction(transaction);
+#endif
 
             if (result != null && result.WasSuccessful)
             {
