@@ -29,18 +29,21 @@ public class JupiterSwapManager : MonoBehaviour
     [Header("Fee Configuration")]
     public string platformFeeWallet = ""; 
     [Range(0f, 10f)]
-    public float platformFeePercent = 0.75f; // YOUR REVENUE - 0.75%
+    public float platformFeePercent = 0.75f; 
 
     [Header("Optimized Network Fee Settings")]
-    [Tooltip("Auto-adjusts priority fee based on network conditions (RECOMMENDED)")]
     public bool useAutoPriorityFee = true;
-
-    [Tooltip("Fixed priority fee in lamports (used if auto is disabled)")]
     [Range(0, 100000)]
-    public int fixedPriorityFeeLamports = 10000; // Reduced from 50,000
-
-    [Tooltip("Check if ATA exists before transaction to avoid unnecessary creation fees")]
+    public int fixedPriorityFeeLamports = 10000; 
     public bool preCheckATA = true;
+
+    [Header("Legacy Transaction Settings")]
+    [Tooltip("Limit max accounts to fit in legacy transaction (1232 bytes). Default 20 is safe.")]
+    [Range(10, 64)]
+    public int maxAccounts = 20; // [FIX] New Parameter
+    
+    [Tooltip("If true, only allows single-hop swaps. Safest for transaction size but worse price.")]
+    public bool onlyDirectRoutes = false; // [FIX] New Parameter
 
     [Header("UI References")]
     public TMP_InputField inputAmountField;
@@ -59,7 +62,7 @@ public class JupiterSwapManager : MonoBehaviour
     public TMP_Text feeText; 
     public TMP_Text inputUsdText;
     public TMP_Text outputUsdText;
-    public TMP_Text estimatedFeesText; // NEW: Shows estimated network fees
+    public TMP_Text estimatedFeesText; 
 
     public Button swapButton;
     public Button maxButton;
@@ -92,8 +95,23 @@ public class JupiterSwapManager : MonoBehaviour
         {
             yield return new WaitForSeconds(0.5f);
         }
+        EnsureWeb3Initialized(); // [FIX] Ensure connection
         RefreshBalances();
         InvokeRepeating(nameof(RefreshBalances), 15f, 15f);
+    }
+
+    private bool EnsureWeb3Initialized()
+    {
+        if (Web3.Instance == null || Web3.Rpc == null)
+        {
+            if (Web3.Instance != null)
+            {
+                Web3.Instance.customRpc = "https://api.mainnet-beta.solana.com"; 
+                return Web3.Rpc != null;
+            }
+            return false;
+        }
+        return true;
     }
 
     private void InitializeEmptyBalances()
@@ -203,8 +221,6 @@ public class JupiterSwapManager : MonoBehaviour
         if (tokenBalances.TryGetValue(inputToken, out TokenBalance tokenData))
         {
             double maxAmount = tokenData.balance;
-            
-            // Calculate required buffer based on fees
             double requiredBuffer = CalculateRequiredBuffer(inputToken);
             
             if (maxAmount <= requiredBuffer) 
@@ -225,27 +241,12 @@ public class JupiterSwapManager : MonoBehaviour
 
     private double CalculateRequiredBuffer(string inputToken)
     {
-        double buffer = 0.000005; // Actual base transaction fee (5,000 lamports)
+        double buffer = 0.000005; 
+        if (useAutoPriorityFee) buffer += 0.00005; 
+        else buffer += fixedPriorityFeeLamports / 1_000_000_000.0;
         
-        // Add priority fee
-        if (useAutoPriorityFee)
-        {
-            buffer += 0.00005; // Estimate for auto priority (conservative)
-        }
-        else
-        {
-            buffer += fixedPriorityFeeLamports / 1_000_000_000.0;
-        }
-        
-        // If platform fees are enabled, add ATA creation cost ONLY if needed
-        if (!string.IsNullOrEmpty(platformFeeWallet) && platformFeePercent > 0)
-        {
-            buffer += 0.00204; // ATA creation (only charged once per token)
-        }
-        
-        // Add small safety margin
-        buffer += 0.0001;
-        
+        if (!string.IsNullOrEmpty(platformFeeWallet) && platformFeePercent > 0) buffer += 0.00204; 
+        buffer += 0.0001; 
         return buffer;
     }
 
@@ -290,7 +291,6 @@ public class JupiterSwapManager : MonoBehaviour
         if (amount < minSwapAmount) { btnText.text = $"Minimum {minSwapAmount}"; swapButton.interactable = false; return; }
         if (tokenBalances.ContainsKey(inputToken) && amount > tokenBalances[inputToken].balance) { btnText.text = "Insufficient Funds"; swapButton.interactable = false; return; }
 
-        // Check if we have enough SOL for fees
         if (!HasSufficientSolForFees(inputToken, amount))
         {
             btnText.text = "Need More SOL";
@@ -304,16 +304,9 @@ public class JupiterSwapManager : MonoBehaviour
     private bool HasSufficientSolForFees(string inputToken, float swapAmount)
     {
         if (!tokenBalances.ContainsKey("SOL")) return false;
-        
         double solBalance = tokenBalances["SOL"].balance;
         double requiredSol = CalculateRequiredBuffer(inputToken);
-        
-        // If swapping SOL itself, add the swap amount
-        if (inputToken == "SOL")
-        {
-            requiredSol += swapAmount;
-        }
-        
+        if (inputToken == "SOL") requiredSol += swapAmount;
         return solBalance >= requiredSol;
     }
     #endregion
@@ -343,10 +336,7 @@ public class JupiterSwapManager : MonoBehaviour
             if(debugMode) Debug.Log($"[Jupiter] Fetching Quote: {amount} {inputToken} -> {outputToken}");
             currentQuote = await GetQuoteWithRetry(inputMint, outputMint, amountRaw);
 
-            if (currentQuote != null) 
-            {
-                await DisplayQuoteInfo();
-            }
+            if (currentQuote != null) await DisplayQuoteInfo();
             else 
             {
                 ShowPopup("No Route", "Try different tokens", Color.red);
@@ -367,7 +357,15 @@ public class JupiterSwapManager : MonoBehaviour
         int feeBps = isValidFeeWallet ? Mathf.RoundToInt(platformFeePercent * 100) : 0;
         string feeParam = feeBps > 0 ? $"&platformFeeBps={feeBps}" : "";
 
-        string url = $"{jupiterBaseUrl}/swap/v1/quote?inputMint={inputMint}&outputMint={outputMint}&amount={amountRaw}&slippageBps={slippageBps}{feeParam}";
+        // [FIX] Added maxAccounts AND asLegacyTransaction to the Quote URL
+        // maxAccounts=20 forces routes that are simple enough to fit in a Legacy transaction.
+        string legacyParam = $"&asLegacyTransaction=true&maxAccounts={maxAccounts}";
+        if (onlyDirectRoutes) legacyParam += "&onlyDirectRoutes=true";
+
+        string url = $"{jupiterBaseUrl}/swap/v1/quote?inputMint={inputMint}&outputMint={outputMint}&amount={amountRaw}&slippageBps={slippageBps}{feeParam}{legacyParam}";
+        
+        if (debugMode) Debug.Log($"[Jupiter] Quote URL: {url}");
+        
         return await GetQuote(url);
     }
 
@@ -412,7 +410,6 @@ public class JupiterSwapManager : MonoBehaviour
             if (minimumReceivedText != null) minimumReceivedText.text = $"{minReceived:F4} {outputToken}";
             if (feeText != null) feeText.text = $"{platformFeePercent}%";
 
-            // Display estimated network fees
             if (estimatedFeesText != null)
             {
                 var feeEstimate = await EstimateSwapFees();
@@ -459,35 +456,20 @@ public class JupiterSwapManager : MonoBehaviour
     private async void ExecuteSwap()
     {
         if (currentQuote == null) return;
-
-        // ---------------------------------------------------------
-        // UNIFIED WALLET RESOLUTION (Match Marketplace Script)
-        // ---------------------------------------------------------
-        PublicKey buyerKey = WalletConnector.UserPublicKey;
-        Account editorAccount = WalletConnector.PlayerAccount;
-
-        if (buyerKey == null)
+        
+        if (!EnsureWeb3Initialized()) 
         {
-            if (Web3.Wallet != null && Web3.Wallet.Account != null)
-            {
-                buyerKey = Web3.Wallet.Account.PublicKey;
-            }
-            // Check for Editor/WebGL sticky account if WalletConnector is null
-            else if (Web3.Account != null)
-            {
-                buyerKey = Web3.Account.PublicKey;
-                editorAccount = Web3.Account;
-            }
-            else
-            {
-                ShowPopup("Wallet", "Connect wallet first.", Color.red);
-                return;
-            }
+            ShowPopup("System Error", "Connection lost.", Color.red);
+            return;
         }
 
-        // ---------------------------------------------------------
-        // VALIDATION
-        // ---------------------------------------------------------
+        PublicKey buyerKey = WalletConnector.UserPublicKey;
+        if (buyerKey == null)
+        {
+            if (Web3.Wallet != null && Web3.Wallet.Account != null) buyerKey = Web3.Wallet.Account.PublicKey;
+            else { ShowPopup("Wallet", "Connect wallet first.", Color.red); return; }
+        }
+
         string inputToken = GetSelectedToken(inputTokenDropdown);
         if (!float.TryParse(inputAmountField.text, out float swapAmount))
         {
@@ -508,7 +490,6 @@ public class JupiterSwapManager : MonoBehaviour
 
         try
         {
-            // 1. Get the raw transaction from Jupiter
             string txBase64 = await GetSwapTransaction(currentQuote);
             if (string.IsNullOrEmpty(txBase64)) 
             { 
@@ -518,56 +499,11 @@ public class JupiterSwapManager : MonoBehaviour
             }
 
             ShowPopup("Confirm Swap", "Processing...", Color.yellow);
-
-            // 2. Deserialize the transaction
-            byte[] txBytes = Convert.FromBase64String(txBase64);
-            var transaction = Transaction.Deserialize(txBytes);
-            RequestResult<string> result = null;
-
-            // ---------------------------------------------------------
-            // SIGN AND SEND PATHWAYS
-            // ---------------------------------------------------------
-            if (editorAccount != null)
-            {
-                // PATH A: EDITOR / WEBGL (Sticky Wallet)
-                // Use the exact signing pattern from your Marketplace script
-                var signature = editorAccount.Sign(transaction.CompileMessage());
-                transaction.AddSignature(editorAccount.PublicKey, signature);
-                
-                byte[] signedTxBytes = transaction.Serialize();
-                string signedTxBase64 = Convert.ToBase64String(signedTxBytes);
-
-                result = await Web3.Rpc.SendTransactionAsync(signedTxBase64);
-            }
-            else if (Web3.Wallet != null)
-            {
-                // PATH B: MOBILE (Adapter)
-                result = await Web3.Wallet.SignAndSendTransaction(transaction);
-            }
-            else
-            {
-                ShowPopup("Error", "No signing method found.", Color.red);
-                swapButton.interactable = true;
-                return;
-            }
-
-            // 3. Handle result
-            if (result != null && result.WasSuccessful)
-            {
-                HandleSwapSuccess(result.Result);
-            }
-            else
-            {
-                string reason = result != null ? result.Reason : "Unknown error";
-                Debug.LogError($"Swap failed: {reason}");
-                ShowPopup("Failed", "Transaction failed.", Color.red);
-                swapButton.interactable = true;
-            }
+            await SignAndSendTransaction(txBase64);
         }
         catch (Exception ex) 
         { 
-            Debug.LogError($"[Jupiter] Execution Error: {ex.Message}");
-            ShowPopup("Failed", "Transaction error occurred.", Color.red); 
+            ShowPopup("Failed", ex.Message, Color.red); 
             swapButton.interactable = true;
         }
     }
@@ -597,8 +533,6 @@ public class JupiterSwapManager : MonoBehaviour
     private async Task<string> GetSwapTransaction(JObject quote)
     {
         string feeAccount = null;
-        bool needsAtaCreation = false;
-        
         if (!string.IsNullOrEmpty(platformFeeWallet) && platformFeePercent > 0)
         {
             try 
@@ -609,41 +543,27 @@ public class JupiterSwapManager : MonoBehaviour
                 PublicKey mintKey = new PublicKey(outputMint);
                 PublicKey ata = AssociatedTokenAccountProgram.DeriveAssociatedTokenAccount(feeWalletKey, mintKey);
                 feeAccount = ata.ToString();
-                
-                // CHECK IF ATA EXISTS to avoid unnecessary creation fees
-                if (preCheckATA)
+                if (preCheckATA && !(await CheckATAExists(ata)))
                 {
-                    needsAtaCreation = !(await CheckATAExists(ata));
-                    if (needsAtaCreation && debugMode)
-                    {
-                        Debug.Log($"[Jupiter] ATA will be created (~0.002 SOL fee)");
-                    }
+                    if(debugMode) Debug.Log($"[Jupiter] ATA will be created");
                 }
             }
-            catch (Exception ex) 
-            { 
-                if(debugMode) Debug.LogWarning($"[Jupiter] ATA check failed: {ex.Message}");
-            }
+            catch (Exception ex) { if(debugMode) Debug.LogWarning($"[Jupiter] ATA check failed: {ex.Message}"); }
         }
 
-        // Use dynamic priority fee or fixed lower amount
-        object priorityFee;
-        if (useAutoPriorityFee)
-        {
-            priorityFee = "auto"; // Let Jupiter calculate optimal fee
-        }
-        else
-        {
-            priorityFee = fixedPriorityFeeLamports; // Use your fixed amount
-        }
+        object priorityFee = useAutoPriorityFee ? "auto" : fixedPriorityFeeLamports;
 
         var reqData = new 
         {
             quoteResponse = quote, 
             userPublicKey = WalletConnector.UserPublicKey.ToString(),
             wrapAndUnwrapSol = true,
+            
+            // [FIX] MUST be true for Unity SDK (Legacy Support)
+            asLegacyTransaction = true, 
+            
             dynamicComputeUnitLimit = true,
-            computeUnitPriceMicroLamports = priorityFee, // OPTIMIZED: More efficient param
+            computeUnitPriceMicroLamports = priorityFee,
             feeAccount = feeAccount 
         };
 
@@ -672,7 +592,61 @@ public class JupiterSwapManager : MonoBehaviour
         }
     }
 
-    // NEW: Helper method to check if ATA exists
+    private async Task SignAndSendTransaction(string txBase64)
+    {
+        try
+        {
+            byte[] txBytes = Convert.FromBase64String(txBase64);
+            var transaction = Transaction.Deserialize(txBytes);
+
+            Account editorAccount = WalletConnector.PlayerAccount;
+            RequestResult<string> result = null;
+
+            if (editorAccount != null)
+            {
+                // PATH A: EDITOR
+                ShowPopup("Wallet", "Signing with Editor Wallet...", Color.yellow);
+                var signature = editorAccount.Sign(transaction.CompileMessage());
+                transaction.AddSignature(editorAccount.PublicKey, signature);
+                
+                byte[] signedBytes = transaction.Serialize();
+                string signedTxBase64 = Convert.ToBase64String(signedBytes);
+                
+                result = await Web3.Rpc.SendTransactionAsync(signedTxBase64);
+            }
+            else if (Web3.Wallet != null)
+            {
+                // PATH B: MOBILE
+                ShowPopup("Wallet", "Please sign on device...", Color.yellow);
+                result = await Web3.Wallet.SignAndSendTransaction(transaction);
+            }
+            else
+            {
+                ShowPopup("Error", "No valid wallet found.", Color.red);
+                swapButton.interactable = true;
+                return;
+            }
+
+            if (result != null && result.WasSuccessful)
+            {
+                HandleSwapSuccess(result.Result);
+            }
+            else
+            {
+                string errorMsg = result != null ? result.Reason : "Unknown Error";
+                Debug.LogError($"Transaction failed: {errorMsg}");
+                ShowPopup("Failed", "Transaction failed.", Color.red);
+                swapButton.interactable = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowPopup("Error", "Signing Failed", Color.red);
+            swapButton.interactable = true;
+            Debug.LogError($"[Jupiter] Sign Error: {ex.Message}\n{ex.StackTrace}");
+        }
+    }
+
     private async Task<bool> CheckATAExists(PublicKey ataAddress)
     {
         try
@@ -680,37 +654,20 @@ public class JupiterSwapManager : MonoBehaviour
             var result = await Web3.Rpc.GetAccountInfoAsync(ataAddress.ToString());
             return result.WasSuccessful && result.Result.Value != null;
         }
-        catch
-        {
-            return false;
-        }
+        catch { return false; }
     }
 
-    // NEW: Method to estimate total fees before swap
     public async Task<FeeEstimate> EstimateSwapFees()
     {
         var estimate = new FeeEstimate();
-        
-        // Base transaction fee
         estimate.baseFee = 0.000005;
+        estimate.priorityFee = useAutoPriorityFee ? 0.00005 : fixedPriorityFeeLamports / 1_000_000_000.0;
         
-        // Priority fee
-        if (useAutoPriorityFee)
-        {
-            estimate.priorityFee = 0.00005; // Conservative estimate
-        }
-        else
-        {
-            estimate.priorityFee = fixedPriorityFeeLamports / 1_000_000_000.0;
-        }
-        
-        // Platform fee (percentage of swap amount)
         if (float.TryParse(inputAmountField.text, out float amount))
         {
             estimate.platformFeeAmount = amount * (platformFeePercent / 100.0);
         }
         
-        // ATA creation (check if needed)
         if (!string.IsNullOrEmpty(platformFeeWallet) && platformFeePercent > 0)
         {
             try
@@ -730,119 +687,14 @@ public class JupiterSwapManager : MonoBehaviour
         }
         
         estimate.totalSolFee = estimate.baseFee + estimate.priorityFee + estimate.ataCreationFee;
-        
         return estimate;
     }
 
-    private async Task SignAndSendTransaction(string txBase64)
-    {
-        try
-        {
-            byte[] txBytes = Convert.FromBase64String(txBase64);
-            var transaction = Transaction.Deserialize(txBytes);
-            
-            // Get the active wallet
-            var wallet = Web3.Wallet;
-            if (wallet == null || wallet.Account == null)
-            {
-                ShowPopup("Wallet", "Connect wallet first.", Color.red);
-                swapButton.interactable = true;
-                return;
-            }
-
-            ShowPopup("Wallet", "Please sign transaction...", Color.yellow);
-            
-            // Sign and send using the wallet adapter (works for both Editor and Mobile)
-            var result = await wallet.SignAndSendTransaction(transaction);
-
-            // Handle result
-            if (result.WasSuccessful)
-            {
-                HandleSwapSuccess(result.Result);
-            }
-            else
-            {
-                Debug.LogError($"Transaction failed: {result.Reason}");
-                ShowPopup("Failed", "Transaction failed.", Color.red);
-                swapButton.interactable = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            ShowPopup("Error", "Signing Failed", Color.red);
-            swapButton.interactable = true;
-            Debug.LogError($"[Jupiter] Sign Error: {ex.Message}\n{ex.StackTrace}");
-        }
-    }
-
-    private async Task SendSignedTransaction(string signedTxBase64)
-    {
-        using (UnityWebRequest req = new UnityWebRequest(Web3.Rpc.NodeAddress.AbsoluteUri, "POST"))
-        {
-            var rpcRequest = new { jsonrpc = "2.0", id = 1, method = "sendTransaction", @params = new object[] { signedTxBase64, new { encoding = "base64", skipPreflight = false } } };
-            string json = JsonConvert.SerializeObject(rpcRequest);
-            byte[] bodyRaw = Encoding.UTF8.GetBytes(json);
-            req.uploadHandler = new UploadHandlerRaw(bodyRaw);
-            req.downloadHandler = new DownloadHandlerBuffer();
-            req.SetRequestHeader("Content-Type", "application/json");
-
-            await req.SendWebRequest();
-
-            if (req.result == UnityWebRequest.Result.Success)
-            {
-                 var response = JObject.Parse(req.downloadHandler.text);
-                 if (response["error"] == null) HandleSwapSuccess(response["result"].ToString());
-                 else 
-                 {
-                     ShowPopup("Failed", "Transaction Error", Color.red);
-                     Debug.LogError($"RPC Error: {response["error"]}");
-                     swapButton.interactable = true;
-                 }
-            }
-            else 
-            {
-                ShowPopup("Failed", "Network Error", Color.red);
-                swapButton.interactable = true;
-            }
-        }
-    }
-    #endregion
-
-    // Binary Helpers
-    private int ReadCompactU16(byte[] data, ref int offset) { byte first = data[offset++]; if (first <= 0x7f) return first; if (first <= 0xbf) return ((first & 0x3f) << 8) | data[offset++]; return ((first & 0x1f) << 16) | (data[offset++] << 8) | data[offset++]; }
-    private int GetCompactU16Size(int val) { if (val <= 0x7f) return 1; if (val <= 0x3fff) return 2; return 3; }
-    private void WriteCompactU16(byte[] data, ref int offset, int val) { if (val <= 0x7f) data[offset++] = (byte)val; else if (val <= 0x3fff) { data[offset++] = (byte)(0x80 | (val >> 8)); data[offset++] = (byte)(val & 0xff); } else { data[offset++] = (byte)(0xc0 | (val >> 16)); data[offset++] = (byte)((val >> 8) & 0xff); data[offset++] = (byte)(val & 0xff); } }
-
-    #region HELPERS
     private string GetSelectedToken(TMP_Dropdown d) => d == null ? "SOL" : d.options[d.value].text;
     private string GetTokenMint(string t) => t == "SOL" ? wrappedSolMint : (t == "USDC" ? usdcMint : playTokenMint);
     private void ShowPopup(string t, string m, Color c) { if (notificationPopup != null) notificationPopup.Show(t, m, c); }
     
-    [Serializable] 
-    public class TokenBalance 
-    { 
-        public string mint; 
-        public double balance; 
-        public int decimals; 
-    }
-
-    [Serializable]
-    public class FeeEstimate
-    {
-        public double baseFee;
-        public double priorityFee;
-        public double platformFeeAmount; // Your 0.75% revenue
-        public double ataCreationFee;
-        public double totalSolFee; // Total network fees in SOL
-        
-        public override string ToString()
-        {
-            return $"Base: {baseFee:F6} SOL\n" +
-                   $"Priority: {priorityFee:F6} SOL\n" +
-                   $"Platform Fee: {platformFeeAmount:F6} (Your Revenue)\n" +
-                   $"ATA Creation: {ataCreationFee:F6} SOL\n" +
-                   $"Total Network Fees: {totalSolFee:F6} SOL";
-        }
-    }
+    [Serializable] public class TokenBalance { public string mint; public double balance; public int decimals; }
+    [Serializable] public class FeeEstimate { public double baseFee; public double priorityFee; public double platformFeeAmount; public double ataCreationFee; public double totalSolFee; }
     #endregion
 }
