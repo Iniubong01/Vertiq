@@ -33120,8 +33120,8 @@ MonoBehaviour:
   useAutoPriorityFee: 1
   fixedPriorityFeeLamports: 10000
   preCheckATA: 1
-  onlyDirectRoutes: 0
   maxAccounts: 20
+  onlyDirectRoutes: 0
   inputAmountField: {fileID: 2045426829}
   outputAmountField: {fileID: 1107037777}
   inputTokenDropdown: {fileID: 1923179150}

@@ -357,12 +357,12 @@ public class JupiterSwapManager : MonoBehaviour
         int feeBps = isValidFeeWallet ? Mathf.RoundToInt(platformFeePercent * 100) : 0;
         string feeParam = feeBps > 0 ? $"&platformFeeBps={feeBps}" : "";
 
-        // [FIX] Added maxAccounts AND asLegacyTransaction to the Quote URL
-        // maxAccounts=20 forces routes that are simple enough to fit in a Legacy transaction.
-        string legacyParam = $"&asLegacyTransaction=true&maxAccounts={maxAccounts}";
-        if (onlyDirectRoutes) legacyParam += "&onlyDirectRoutes=true";
+        // Use maxAccounts to limit route complexity; no legacy constraint so Jupiter can use
+        // versioned (v0) transactions with address lookup tables for smaller tx size
+        string routeParams = $"&maxAccounts={maxAccounts}";
+        if (onlyDirectRoutes) routeParams += "&onlyDirectRoutes=true";
 
-        string url = $"{jupiterBaseUrl}/swap/v1/quote?inputMint={inputMint}&outputMint={outputMint}&amount={amountRaw}&slippageBps={slippageBps}{feeParam}{legacyParam}";
+        string url = $"{jupiterBaseUrl}/swap/v1/quote?inputMint={inputMint}&outputMint={outputMint}&amount={amountRaw}&slippageBps={slippageBps}{feeParam}{routeParams}";
         
         if (debugMode) Debug.Log($"[Jupiter] Quote URL: {url}");
         
@@ -498,6 +498,12 @@ public class JupiterSwapManager : MonoBehaviour
                 return; 
             }
 
+            if (debugMode)
+            {
+                byte[] rawCheck = Convert.FromBase64String(txBase64);
+                Debug.Log($"[Jupiter] Transaction size: {rawCheck.Length} bytes");
+            }
+
             ShowPopup("Confirm Swap", "Processing...", Color.yellow);
             await SignAndSendTransaction(txBase64);
         }
@@ -558,10 +564,6 @@ public class JupiterSwapManager : MonoBehaviour
             quoteResponse = quote, 
             userPublicKey = WalletConnector.UserPublicKey.ToString(),
             wrapAndUnwrapSol = true,
-            
-            // [FIX] MUST be true for Unity SDK (Legacy Support)
-            asLegacyTransaction = true, 
-            
             dynamicComputeUnitLimit = true,
             computeUnitPriceMicroLamports = priorityFee,
             feeAccount = feeAccount 
@@ -597,28 +599,45 @@ public class JupiterSwapManager : MonoBehaviour
         try
         {
             byte[] txBytes = Convert.FromBase64String(txBase64);
-            var transaction = Transaction.Deserialize(txBytes);
-
             Account editorAccount = WalletConnector.PlayerAccount;
             RequestResult<string> result = null;
 
             if (editorAccount != null)
             {
-                // PATH A: EDITOR
+                // PATH A: EDITOR - Sign raw bytes directly (works for both legacy AND versioned v0 transactions)
+                // Transaction format: [numSignatures (1 byte)] [signatures (N * 64 bytes)] [message (remaining bytes)]
                 ShowPopup("Wallet", "Signing with Editor Wallet...", Color.yellow);
-                var signature = editorAccount.Sign(transaction.CompileMessage());
-                transaction.AddSignature(editorAccount.PublicKey, signature);
-                
-                byte[] signedBytes = transaction.Serialize();
-                string signedTxBase64 = Convert.ToBase64String(signedBytes);
-                
-                result = await Web3.Rpc.SendTransactionAsync(signedTxBase64);
+
+                int numSignatures = txBytes[0];
+                int messageOffset = 1 + (numSignatures * 64);
+                byte[] message = new byte[txBytes.Length - messageOffset];
+                Array.Copy(txBytes, messageOffset, message, 0, message.Length);
+
+                // Sign the message and write signature into the first slot (fee payer)
+                byte[] signature = editorAccount.Sign(message);
+                Array.Copy(signature, 0, txBytes, 1, 64);
+
+                string signedBase64 = Convert.ToBase64String(txBytes);
+                if (debugMode) Debug.Log($"[Jupiter] Signed tx: {txBytes.Length} bytes (no size change)");
+
+                result = await Web3.Rpc.SendTransactionAsync(signedBase64);
             }
             else if (Web3.Wallet != null)
             {
-                // PATH B: MOBILE
+                // PATH B: MOBILE - Try legacy deserialization first, fall back to raw bytes
                 ShowPopup("Wallet", "Please sign on device...", Color.yellow);
-                result = await Web3.Wallet.SignAndSendTransaction(transaction);
+                try
+                {
+                    var transaction = Transaction.Deserialize(txBytes);
+                    result = await Web3.Wallet.SignAndSendTransaction(transaction);
+                }
+                catch (Exception deserializeEx)
+                {
+                    Debug.LogWarning($"[Jupiter] Legacy deserialize failed (versioned tx?): {deserializeEx.Message}");
+                    ShowPopup("Error", "Transaction format not supported by wallet", Color.red);
+                    swapButton.interactable = true;
+                    return;
+                }
             }
             else
             {
