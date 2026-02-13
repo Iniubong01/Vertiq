@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Solana.Unity.Programs.Abstract;
 using Solana.Unity.Programs.Utilities;
@@ -10,6 +11,8 @@ using Solana.Unity.Rpc.Types;
 using Solana.Unity.Wallet;
 using Solana.Unity.SDK; 
 using Solana.Unity.Rpc.Core.Http;
+using UnityEngine.Networking;
+using Newtonsoft.Json.Linq;
 
 using Vortiq;
 using Vortiq.Program;
@@ -73,8 +76,6 @@ namespace Vortiq
             Commitment commitment)
         {
             // 1. Sign with auxiliary accounts first (if any)
-            //    These are accounts that need to sign but are NOT the fee payer
-            //    Example: When creating a new account that must sign for initialization
             if (auxiliarySigners != null && auxiliarySigners.Any())
             {
                 var signersList = auxiliarySigners.ToList();
@@ -82,41 +83,137 @@ namespace Vortiq
                 tx.PartialSign(signersList);
             }
 
-            // 2. CHECK: Is there a Global Wallet (Mobile/WebGL/Phantom)?
+#if UNITY_EDITOR
+            // PATH A: EDITOR - Sign locally, send via raw HTTP (bypasses SDK JSON parser bug)
+            if (explicitPayer == null)
+            {
+                throw new Exception("❌ No explicitPayer account provided for Editor signing.");
+            }
+
+            UnityEngine.Debug.Log("[VortiqClient] Using explicit payer account for signing (Editor mode)");
+            
+            var signature = explicitPayer.Sign(tx.CompileMessage());
+            tx.AddSignature(explicitPayer.PublicKey, signature);
+            
+            byte[] txBytes = tx.Serialize();
+            string txBase64 = Convert.ToBase64String(txBytes);
+            UnityEngine.Debug.Log($"[VortiqClient] Transaction serialized, length: {txBytes.Length} bytes");
+            
+            // Bypass SDK's JsonRpcClient which throws "Unable to parse json"
+            var rawResult = await SendTransactionRaw(txBase64);
+            var editorResult = new RequestResult<string> { Result = rawResult.signature, Reason = rawResult.error };
+            return editorResult;
+#else
+            // PATH B: MOBILE (Android/iOS) - Use wallet adapter for native signing
             if (Web3.Wallet != null)
             {
-                UnityEngine.Debug.Log("[VortiqClient] Using Web3.Wallet for signing (WebGL/Mobile/Phantom)");
-                // Sign and send using the wallet adapter (handles platform-specific signing)
+                UnityEngine.Debug.Log("[VortiqClient] Using Web3.Wallet for signing (Mobile/Phantom)");
                 return await Web3.Wallet.SignAndSendTransaction(tx, skipPreflight: false, commitment);
             }
 
-            // 3. FALLBACK: Editor / Local Wallet (Direct Account signing)
+            // FALLBACK: If wallet adapter isn't available, try local signing
             if (explicitPayer != null)
             {
-                UnityEngine.Debug.Log("[VortiqClient] Using explicit payer account for signing (Editor mode)");
-                
-                // CRITICAL FIX: Match the MarketplacePurchase pattern EXACTLY
-                // 1. Sign the compiled message
-                var signature = explicitPayer.Sign(tx.CompileMessage());
-                
-                // 2. Add the signature to the transaction
-                tx.AddSignature(explicitPayer.PublicKey, signature);
-                
-                // 3. Serialize to byte array first, then Base64
-                byte[] txBytes = tx.Serialize();
-                string txBase64 = Convert.ToBase64String(txBytes);
-                
-                UnityEngine.Debug.Log($"[VortiqClient] Transaction serialized, length: {txBytes.Length} bytes");
-                
-                // 4. CRITICAL: Use Web3.Rpc instead of RpcClient (matches MarketplacePurchase)
-                return await Web3.Rpc.SendTransactionAsync(txBase64);
+                UnityEngine.Debug.Log("[VortiqClient] Fallback: Using explicit payer on mobile");
+                var sig = explicitPayer.Sign(tx.CompileMessage());
+                tx.AddSignature(explicitPayer.PublicKey, sig);
+                byte[] rawTx = tx.Serialize();
+                string rawBase64 = Convert.ToBase64String(rawTx);
+                var mobileRaw = await SendTransactionRaw(rawBase64);
+                var mobileResult = new RequestResult<string> { Result = mobileRaw.signature, Reason = mobileRaw.error };
+                return mobileResult;
             }
 
-            // 4. ERROR: No signing method available
             throw new Exception(
                 "❌ Cannot send transaction: No signing method available. " +
-                "Web3.Wallet is null (are you in Editor without a wallet?) and no explicitPayer account was provided."
+                "Web3.Wallet is null and no explicitPayer account was provided."
             );
+#endif
+        }
+
+        /// <summary>
+        /// Sends a signed transaction via raw HTTP POST, bypassing the SDK's 
+        /// JsonRpcClient which has a known "Unable to parse json" bug.
+        /// Returns (success, signature, error).
+        /// </summary>
+        private static async Task<(bool success, string signature, string error)> SendTransactionRaw(string txBase64)
+        {
+            string rpcUrl = Web3.Instance.customRpc;
+            if (string.IsNullOrEmpty(rpcUrl))
+                rpcUrl = "https://api.mainnet-beta.solana.com";
+
+            // Build JSON-RPC request
+            var requestBody = new JObject
+            {
+                ["jsonrpc"] = "2.0",
+                ["id"] = 1,
+                ["method"] = "sendTransaction",
+                ["params"] = new JArray
+                {
+                    txBase64,
+                    new JObject
+                    {
+                        ["encoding"] = "base64",
+                        ["skipPreflight"] = false,
+                        ["preflightCommitment"] = "confirmed"
+                    }
+                }
+            };
+
+            string jsonPayload = requestBody.ToString(Newtonsoft.Json.Formatting.None);
+            byte[] bodyBytes = Encoding.UTF8.GetBytes(jsonPayload);
+
+            var request = new UnityWebRequest(rpcUrl, "POST");
+            request.uploadHandler = new UploadHandlerRaw(bodyBytes);
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+
+            // Wrap UnityWebRequest in TaskCompletionSource for async/await
+            var tcs = new TaskCompletionSource<bool>();
+            var op = request.SendWebRequest();
+            op.completed += _ => tcs.TrySetResult(true);
+            await tcs.Task;
+
+            string responseText = request.downloadHandler.text;
+            UnityEngine.Debug.Log($"[VortiqClient] Raw RPC response: {responseText}");
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                string httpErr = $"HTTP Error: {request.error}";
+                UnityEngine.Debug.LogError($"[VortiqClient] {httpErr}");
+                request.Dispose();
+                return (false, null, httpErr);
+            }
+
+            request.Dispose();
+
+            try
+            {
+                var json = JObject.Parse(responseText);
+
+                if (json["error"] != null)
+                {
+                    string errMsg = json["error"]["message"]?.ToString() ?? "Unknown RPC error";
+                    UnityEngine.Debug.LogError($"[VortiqClient] RPC Error: {errMsg}");
+                    return (false, null, errMsg);
+                }
+
+                string txSignature = json["result"]?.ToString();
+                if (!string.IsNullOrEmpty(txSignature))
+                {
+                    UnityEngine.Debug.Log($"[VortiqClient] ✅ Transaction sent: {txSignature}");
+                    return (true, txSignature, null);
+                }
+                else
+                {
+                    return (false, null, "No transaction signature in response");
+                }
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError($"[VortiqClient] Parse error: {ex.Message}\nResponse: {responseText}");
+                return (false, null, $"Response parse error: {ex.Message}");
+            }
         }
 
         public async Task<RequestResult<string>> InitializeAsync(

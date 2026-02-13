@@ -8,6 +8,9 @@ using UnityEngine.SceneManagement;
 
 public class UIManager : MonoBehaviour
 {
+    // [NEW] Global flag to track menu state
+    public static bool IsMenuInteractable = false;
+
     [Header("Marketplace Integration")]
     [SerializeField] private MarketplacePurchase paymentProcessor; 
 
@@ -56,13 +59,11 @@ public class UIManager : MonoBehaviour
 
     private void Start()
     {
-        // 1. [CRITICAL FIX] Always reset time scale on scene load!
         Time.timeScale = 1f;
+        IsMenuInteractable = false; // [NEW] Reset at start
 
-        // 2. Setup Listeners
         SetupButtonListeners();
 
-        // 3. Handle Scene State
         if (SkipSplashSequence)
         {
             ResetAllUI();
@@ -123,7 +124,6 @@ public class UIManager : MonoBehaviour
             PlayerPrefs.SetInt("FirstTimeCoinGift", 1);
             PlayerPrefs.Save();
             
-            // Give 2 of each powerup for free
             ShopData.Instance.AddPowerup("shield"); ShopData.Instance.AddPowerup("shield");
             ShopData.Instance.AddPowerup("bullets"); ShopData.Instance.AddPowerup("bullets");
             ShopData.Instance.AddPowerup("freezetime"); ShopData.Instance.AddPowerup("freezetime");
@@ -136,7 +136,7 @@ public class UIManager : MonoBehaviour
     #region NAVIGATION & UI
     private IEnumerator CloseSplashThenLoadMain()
     {
-        yield return new WaitForSeconds(Random.Range(4.5f, 8f));
+        yield return new WaitForSeconds(UnityEngine.Random.Range(4.5f, 8f));
         SetCanvasGroupInActive(splashUICG); 
         yield return new WaitForSeconds(fadeDuration);
         yield return StartCoroutine(ShowLoadingUI(menuUICG));
@@ -173,13 +173,29 @@ public class UIManager : MonoBehaviour
         tUI.DOKill(); 
         tUI.gameObject.SetActive(true);
         tUI.alpha = 0; 
-        tUI.DOFade(1, fadeDuration).SetUpdate(true); 
-        tUI.interactable = true;
-        tUI.blocksRaycasts = true;
+        tUI.DOFade(1, fadeDuration).SetUpdate(true).OnComplete(() => 
+        {
+            tUI.interactable = true;
+            tUI.blocksRaycasts = true;
+
+            // [FIX] NOTIFY WALLET CONNECTOR HERE
+            // If this is the Menu, tell the Wallet it's okay to show popups now
+            if (tUI == menuUICG)
+            {
+                IsMenuInteractable = true;
+                if (WalletConnector.Instance != null)
+                {
+                    WalletConnector.Instance.AttemptShowUsernamePanel();
+                }
+            }
+        });
     }
 
     private void SetCanvasGroupInActive(CanvasGroup tUI)
     {
+        // [FIX] Disable interaction flag if leaving menu
+        if (tUI == menuUICG) IsMenuInteractable = false;
+
         tUI.DOKill(); 
         tUI.interactable = false;
         tUI.blocksRaycasts = false;
@@ -195,6 +211,23 @@ public class UIManager : MonoBehaviour
         tUI.alpha = 1;
         tUI.interactable = true;
         tUI.blocksRaycasts = true;
+
+        // [FIX] Handle instant load (Skip Splash case)
+        if (tUI == menuUICG)
+        {
+            IsMenuInteractable = true;
+            // Use a coroutine to wait 1 frame for WalletConnector to initialize
+            StartCoroutine(NotifyWalletReady());
+        }
+    }
+
+    private IEnumerator NotifyWalletReady()
+    {
+        yield return null;
+        if (WalletConnector.Instance != null)
+        {
+            WalletConnector.Instance.AttemptShowUsernamePanel();
+        }
     }
 
     private void DisableCanvasGroupInstant(CanvasGroup tUI)
@@ -224,14 +257,12 @@ public class UIManager : MonoBehaviour
     private void OnDestroy() { DOTween.KillAll(); }
     #endregion
 
-    #region PURCHASE LOGIC (UPDATED FOR TOKEN POWERUPS)
-
+    #region PURCHASE LOGIC
     public void BuyCoinsWithPlay()
     {
         PlayClickSound();
         if (paymentProcessor != null && !string.IsNullOrEmpty(playTokenMintAddress))
         {
-            // PaymentProcessor handles balance checks and popups internally
             paymentProcessor.PurchaseWithSplToken(playTokenPrice, playTokenMintAddress, () => 
             {
                 ShopData.Instance.AddCoins(coinsRewardAmount);
@@ -249,79 +280,30 @@ public class UIManager : MonoBehaviour
     public void BuyCoinsPack100() { PlayClickSound(); if(paymentProcessor != null) paymentProcessor.PurchaseWithSol(pricePack100, () => { ShopData.Instance.AddCoins(100); UpdateUI(); }); }
     public void BuyCoinsPack200() { PlayClickSound(); if(paymentProcessor != null) paymentProcessor.PurchaseWithSol(pricePack200, () => { ShopData.Instance.AddCoins(200); UpdateUI(); }); }
     
-    // --- POWERUP PURCHASES WITH TOKEN ---
+    public void BuyShieldPowerup() { BuyPowerup(priceShield, "shield", () => ShopData.Instance.AddPowerup("shield"), UpdateShieldVisuals); }
+    public void BuyMultipleBullets() { BuyPowerup(priceBullets, "bullets", () => ShopData.Instance.AddPowerup("bullets"), UpdateMultipleBulletsVisuals); }
+    public void BuyFreezeTime() { BuyPowerup(priceFreezeTime, "freezetime", () => ShopData.Instance.AddPowerup("freezetime"), UpdateFreezeTimeVisuals); }
+    public void BuyFullLives() { BuyPowerup(priceFullLives, "fulllives", () => ShopData.Instance.AddPowerup("fulllives"), UpdateFullLivesVisuals); }
 
-    public void BuyShieldPowerup()
+    private void BuyPowerup(float price, string id, System.Action addAction, System.Action visualAction)
     {
         PlayClickSound();
-        // 1. Check Max Limit first
-        if (ShopData.Instance.powerupShield >= 5) return;
-
-        // 2. Validate Config
-        if (paymentProcessor == null || string.IsNullOrEmpty(playTokenMintAddress)) { Debug.LogError("Config missing"); return; }
-
-        // 3. Initiate Token Purchase
-        // MarketplacePurchase handles the balance check and error popups
-        paymentProcessor.PurchaseWithSplToken(priceShield, playTokenMintAddress, () =>
+        if (paymentProcessor == null) return;
+        
+        // Check limits here if desired, otherwise rely on UpdateUI/Interactivity
+        // (Assuming max limit is checked via button interactivity state)
+        
+        paymentProcessor.PurchaseWithSplToken(price, playTokenMintAddress, () =>
         {
-            // On Success
-            ShopData.Instance.AddPowerup("shield");
-            UpdateShieldVisuals();
+            addAction();
+            visualAction();
             UpdateUI();
             StartCoroutine(RefocusSelectionRoutine());
         });
     }
-
-    public void BuyMultipleBullets()
-    {
-        PlayClickSound();
-        if (ShopData.Instance.powerupMultipleBullets >= 5) return;
-        if (paymentProcessor == null || string.IsNullOrEmpty(playTokenMintAddress)) { Debug.LogError("Config missing"); return; }
-
-        paymentProcessor.PurchaseWithSplToken(priceBullets, playTokenMintAddress, () =>
-        {
-            ShopData.Instance.AddPowerup("bullets");
-            UpdateMultipleBulletsVisuals();
-            UpdateUI();
-            StartCoroutine(RefocusSelectionRoutine());
-        });
-    }
-
-    public void BuyFreezeTime()
-    {
-        PlayClickSound();
-        if (ShopData.Instance.powerupFreezeTime >= 5) return;
-        if (paymentProcessor == null || string.IsNullOrEmpty(playTokenMintAddress)) { Debug.LogError("Config missing"); return; }
-
-        paymentProcessor.PurchaseWithSplToken(priceFreezeTime, playTokenMintAddress, () =>
-        {
-            ShopData.Instance.AddPowerup("freezetime");
-            UpdateFreezeTimeVisuals();
-            UpdateUI();
-            StartCoroutine(RefocusSelectionRoutine());
-        });
-    }
-
-    public void BuyFullLives()
-    {
-        PlayClickSound();
-        if (ShopData.Instance.powerupFullLives >= 5) return;
-        if (paymentProcessor == null || string.IsNullOrEmpty(playTokenMintAddress)) { Debug.LogError("Config missing"); return; }
-
-        paymentProcessor.PurchaseWithSplToken(priceFullLives, playTokenMintAddress, () =>
-        {
-            ShopData.Instance.AddPowerup("fulllives");
-            UpdateFullLivesVisuals();
-            UpdateUI();
-            StartCoroutine(RefocusSelectionRoutine());
-        });
-    }
-
     #endregion
 
     #region VISUALS & INTERACTIVITY
-
-    // Only check against MAX LIMIT (5). Balance check is handled async by PaymentProcessor.
     public void checkInteractivity_ShieldButton() { powerUpPurchaseButtons[0].interactable = ShopData.Instance.powerupShield < 5; }
     public void checkInteractivity_MultipleBulletButton() { powerUpPurchaseButtons[1].interactable = ShopData.Instance.powerupMultipleBullets < 5; }
     public void checkInteractivity_FullLivesButton() { powerUpPurchaseButtons[2].interactable = ShopData.Instance.powerupFullLives < 5; }

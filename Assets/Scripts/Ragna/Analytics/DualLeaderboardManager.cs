@@ -45,7 +45,7 @@ public class DualLeaderboardManager : MonoBehaviour
         }
     }
 
-    public async void LoginToUnity(string walletAddress)
+    public async Task LoginToUnity(string walletAddress)
     {
         if (AuthenticationService.Instance.IsSignedIn) return;
 
