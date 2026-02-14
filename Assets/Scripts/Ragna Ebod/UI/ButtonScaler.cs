@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using System.Collections;
+using DG.Tweening;
 
 public class ButtonScaler : MonoBehaviour, ISelectHandler, IDeselectHandler, IPointerEnterHandler, IPointerExitHandler
 {
@@ -37,6 +38,8 @@ public class ButtonScaler : MonoBehaviour, ISelectHandler, IDeselectHandler, IPo
     public void OnSelect(BaseEventData eventData)
     {
         StartScale(originalScale * scaleAmount);
+
+        SoundManager.Instance.PlayButtonSound();
     }
 
     public void OnDeselect(BaseEventData eventData)
@@ -51,6 +54,16 @@ public class ButtonScaler : MonoBehaviour, ISelectHandler, IDeselectHandler, IPo
         if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != gameObject)
         {
             StartScale(originalScale * scaleAmount);
+
+            var cg = this.GetComponent<CanvasGroup>();
+            if(cg == null)
+            {
+                Debug.LogWarning("No Canvas Group, skipping!");
+            }
+            else
+            {
+                FadeInCanvasGroupActive(cg);
+            }
         }
     }
 
@@ -64,6 +77,16 @@ public class ButtonScaler : MonoBehaviour, ISelectHandler, IDeselectHandler, IPo
         if (shrinkOnHoverExit || EventSystem.current.currentSelectedGameObject != gameObject)
         {
             StartScale(originalScale);
+
+            var cg = this.GetComponent<CanvasGroup>();
+            if(cg == null)
+            {
+                Debug.LogWarning("No Canvas Group, skipping!");
+            }
+            else
+            {
+                FadeOutCanvasGroupInActive(cg);
+            }
         }
     }
 
@@ -87,5 +110,18 @@ public class ButtonScaler : MonoBehaviour, ISelectHandler, IDeselectHandler, IPo
         }
 
         transform.localScale = target;
+    }
+
+    private void FadeInCanvasGroupActive(CanvasGroup tUI)
+    {
+        tUI.DOKill();
+        tUI.alpha = 0; 
+        tUI.DOFade(1, 0.4f).SetUpdate(true); 
+    }
+
+    private void FadeOutCanvasGroupInActive(CanvasGroup tUI)
+    {
+        tUI.DOKill();
+        tUI.DOFade(0.5f, 0.4f).SetUpdate(true);
     }
 }

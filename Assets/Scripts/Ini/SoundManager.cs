@@ -4,7 +4,7 @@ public class SoundManager : MonoBehaviour
 {
     private AudioSource audioSource;
     [SerializeField] AudioClip deathSound, enemyDeathSound;
-    [SerializeField] AudioClip buttonSound;
+    [SerializeField] AudioClip buttonSound, hoverSound;
     public static SoundManager Instance;
 
     /// Awake is called when the script instance is being loaded.
@@ -42,5 +42,10 @@ public class SoundManager : MonoBehaviour
     public void PlayButtonSound()
     {
         audioSource.PlayOneShot(buttonSound);
+    }
+
+    public void PlayHoverSound()
+    {
+        audioSource.PlayOneShot(hoverSound);
     }
 }
