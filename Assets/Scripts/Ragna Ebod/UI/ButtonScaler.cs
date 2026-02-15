@@ -34,6 +34,12 @@ public class ButtonScaler : MonoBehaviour, ISelectHandler, IDeselectHandler, IPo
         }
     }
 
+    // --- SCALE ON START ---
+    public void SelectVisual()
+    {
+        StartScale(originalScale * scaleAmount);
+    }
+
     // --- GAMEPAD / KEYBOARD LOGIC ---
     public void OnSelect(BaseEventData eventData)
     {
