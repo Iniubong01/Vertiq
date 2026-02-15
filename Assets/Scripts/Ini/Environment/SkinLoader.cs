@@ -5,7 +5,7 @@ public class SkinLoader : MonoBehaviour
 {
     [SerializeField] GameObject default_Player;
      [SerializeField] GameObject secondary_Player;
-    [SerializeField] GameObject head_Player;
+    [SerializeField] GameObject [] head_Player;
     [SerializeField] Sprite [] playerSkins;
     [SerializeField] GameObject [] environmentSkins;
 
@@ -15,6 +15,8 @@ public class SkinLoader : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Awake()
     {
+        ResetAllPlayers();
+
         // Load the saved skin indices from PlayerPrefs, using default values of 0 if no saved data is found
         skinIndex = PlayerPrefs.GetInt("SelectedPlayerSkin", 0);
         envSkinIndex = PlayerPrefs.GetInt("SelectedEnvironmentSkin", 0);
@@ -27,11 +29,16 @@ public class SkinLoader : MonoBehaviour
         // --------------------------------------------------------------------------------
         // If the skin index is between 0 and 3, it means we are using a default player skin,
         // so we activate the default player and set the sprite accordingly, while deactivating the head player.
-        if (skinIndex == 0)
+
+        if (skinIndex <= 0 )
         {
             default_Player.SetActive(true);
             secondary_Player.SetActive(false);
-            head_Player.SetActive(false);
+            
+            foreach(var obj in head_Player) 
+            {
+                obj.SetActive(false);
+            }
         }
 
         // If the skin index is between 1 and 3, it means we are using a secondary player skin,
@@ -41,20 +48,26 @@ public class SkinLoader : MonoBehaviour
         {
             secondary_Player.SetActive(true);
             default_Player.SetActive(false);
-            head_Player.SetActive(false);
 
             secondary_Player.GetComponent<SpriteRenderer>().sprite = playerSkins[skinIndex];
+                        
+            foreach(var obj in head_Player) 
+            {
+                obj.SetActive(false);
+            }
         }
-        
-        // If the skin index is 4 or higher, it means we are using a head skin,
-        // so we activate the head player and set the sprite accordingly, while deactivating the default player.
+
+        // If the skin index is 4 or higher, it means we are using a head skin
         else if (skinIndex >= 4)
         {
-            head_Player.SetActive(true);
-            default_Player.SetActive(false);
-            secondary_Player.SetActive(false);
+            int headIndex = skinIndex - 4;
 
-            head_Player.GetComponent<SpriteRenderer>().sprite = playerSkins[skinIndex];
+            if (headIndex >= 0 && headIndex < head_Player.Length)
+            {
+                head_Player[headIndex].SetActive(true);
+                default_Player.SetActive(false);
+                secondary_Player.SetActive(false);
+            }
         }
 
         // We first deactivate all environment skins to ensure that only the selected one is active.
@@ -69,4 +82,13 @@ public class SkinLoader : MonoBehaviour
             environmentSkins[envSkinIndex].SetActive(true);
         }
     }  
+
+    void ResetAllPlayers()
+    {
+        default_Player.SetActive(false);
+        secondary_Player.SetActive(false);
+
+        foreach (var obj in head_Player)
+            obj.SetActive(false);
+    }
 }

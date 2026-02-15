@@ -59,7 +59,8 @@ public class PowerUpManager : MonoBehaviour
     private void Start()
     {
         // Safety check
-        GameObject pObj = GameObject.Find("Player");
+        GameObject pObj = GameObject.FindGameObjectWithTag("Player");
+
         if (pObj != null) player = pObj.GetComponent<Player>();
         else Debug.LogError("[PowerUpManager] Player object not found!");
 

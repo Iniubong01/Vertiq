@@ -13,7 +13,7 @@ public class GameManager : MonoBehaviour
     [Header("Leaderboards")]
     [SerializeField] private DualLeaderboardManager leaderboardManager;
 
-    [SerializeField] private Player player;
+    private Player player;
     [SerializeField] private ParticleSystem explosionEffect, enemyExplosionEffect;
     [SerializeField] private GameObject gameOverUI, powerUpButtons;
     [SerializeField] private Text livesText;
@@ -62,6 +62,11 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
+        if(player == null)
+        {
+            player = GameObject.FindGameObjectWithTag("Player").GetComponent<Player>();
+        }
+
         // Load saved stats
         bestScore = PlayerPrefs.GetInt("BestScore", 0);
         bestTime = PlayerPrefs.GetFloat("BestTime", 99999f);

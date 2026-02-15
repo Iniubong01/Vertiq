@@ -25,15 +25,23 @@ public class PlayerSkin : MonoBehaviour, ISelectHandler, IDeselectHandler, IPoin
         UpdateLockUI();
     }
 
+    private void OnEnable()
+    {
+        UpdateLockUI();
+    }
+
+
     // --- GAMEPAD / KEYBOARD LOGIC ---
     public void OnSelect(BaseEventData eventData)
     {
         EnableOutline();
+        UpdateLockUI();
     }
 
     public void OnDeselect(BaseEventData eventData)
     {
         DisableOutline();
+        UpdateLockUI();
     }
 
     #region Selection logic
