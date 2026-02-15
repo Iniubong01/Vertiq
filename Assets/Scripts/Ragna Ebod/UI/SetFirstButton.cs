@@ -15,7 +15,7 @@ public class SetFirstButton : MonoBehaviour
             EventSystem.current.SetSelectedGameObject(null);
             
             // Set the new selection
-            EventSystem.current.SetSelectedGameObject(firstButton);
+            // EventSystem.current.SetSelectedGameObject(firstButton);
         }
     }
 }

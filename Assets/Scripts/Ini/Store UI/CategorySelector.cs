@@ -41,6 +41,9 @@ public class CategorySelector : MonoBehaviour
 
         e_cursorButton.onClick.AddListener(e_FadeInCursorCG);
         e_rareButton.onClick.AddListener(e_FadeInRareCG);
+
+        FadeInPowerUpCG();
+        powerUpButton.GetComponent<ButtonScaler>().SelectVisual();
     }
 
     #region CanvasGroup Fade Control Methods
