@@ -33,7 +33,7 @@ public class UIManager : MonoBehaviour
 
     [Header("UI References")]
     [SerializeField] private float fadeDuration = 0.7f;
-    [SerializeField] private CanvasGroup splashUICG, loadingUICG, menuUICG, storeUICG, solStoreUICG;
+    [SerializeField] private CanvasGroup splashUICG, loadingUICG, menuUICG, storeUICG, solStoreUICG, leaderboardUICG;
 
     [Header("Loading UI")]
     [SerializeField] private Slider progressBar;
@@ -90,6 +90,7 @@ public class UIManager : MonoBehaviour
         DisableCanvasGroupInstant(menuUICG);
         DisableCanvasGroupInstant(storeUICG);
         DisableCanvasGroupInstant(solStoreUICG);
+        DisableCanvasGroupInstant(leaderboardUICG);
     }
 
     private void SetupButtonListeners()
@@ -146,6 +147,8 @@ public class UIManager : MonoBehaviour
     public void StoreToMenu() { SetCanvasGroupInActive(storeUICG); SetCanvasGroupActive(menuUICG); PlayClickSound(); }
     public void StoreToSolStore() { SetCanvasGroupInActive(storeUICG); SetCanvasGroupActive(solStoreUICG); PlayClickSound(); }
     public void SolStoreToStore() { SetCanvasGroupInActive(solStoreUICG); SetCanvasGroupActive(storeUICG); PlayClickSound(); }
+    public void LeaderboardToMenu() { SetCanvasGroupInActive(menuUICG); SetCanvasGroupActive(leaderboardUICG); PlayClickSound(); }
+    public void MenuToLeaderboard() { SetCanvasGroupInActive(leaderboardUICG); SetCanvasGroupActive(menuUICG); PlayClickSound(); }
 
     public IEnumerator ShowLoadingUI(CanvasGroup targetUI)
     {
