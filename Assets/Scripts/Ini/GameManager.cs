@@ -20,6 +20,8 @@ public class GameManager : MonoBehaviour
 
     // Score + lives
     public int score { get; private set; } = 0;
+    public int totalMoves { get; private set; } = 0;
+    public int obstaclesKilled { get; private set; } = 0;
     public int lives = 3;
 
     [SerializeField] int TotalVortiqCoins = 500;
@@ -36,6 +38,9 @@ public class GameManager : MonoBehaviour
     private float bestTime = 99999f;  // Large default start
     [HideInInspector] public bool playerDead;
     [SerializeField] Button shootButton;
+
+    [Header("Blockchain")]
+    [SerializeField] private GameStatsSubmitter statsSubmitter;
     
     // We store the reference privately now
     private CanvasGroup gameOverCanvasGroup; 
@@ -120,6 +125,9 @@ public class GameManager : MonoBehaviour
             Destroy(asteroids[i].gameObject);
 
         gameOverUI.SetActive(false);
+
+        totalMoves = 0;
+        obstaclesKilled = 0;
         
         // Reset Alpha for new game
         if (gameOverCanvasGroup != null) 
@@ -176,6 +184,7 @@ public class GameManager : MonoBehaviour
 
     public void OnAsteroidDestroyed(Asteroid asteroid)
     {
+        obstaclesKilled++; // Add this line
         enemyExplosionEffect.transform.position = asteroid.transform.position;
         enemyExplosionEffect.Play();
 
@@ -226,6 +235,17 @@ public class GameManager : MonoBehaviour
             else
             {
                 Debug.LogWarning("Leaderboard System is missing! Did you start from the Splash/Boot scene?");
+            }
+
+            // In OnPlayerDeath() when lives <= 0:
+            if (statsSubmitter != null)
+            {
+                statsSubmitter.SubmitGameStats(
+                    totalMoves,
+                    obstaclesKilled,
+                    score,
+                    (long)currentTime
+                );
             }
         }
         else
@@ -295,5 +315,10 @@ public class GameManager : MonoBehaviour
         int minutes = Mathf.FloorToInt(t / 60f);
         int seconds = Mathf.FloorToInt(t % 60f);
         return $"{minutes}:{seconds:00}";
+    }
+
+    public void IncrementMoves()
+    {
+        totalMoves++;
     }
 }
