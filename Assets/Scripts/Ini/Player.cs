@@ -57,6 +57,11 @@ public class Player : MonoBehaviour
 
     private void Start()
     {
+        Debug.Log($"[Player] Start() called - Time.timeScale: {Time.timeScale}");
+        Debug.Log($"[Player] GameObject active: {gameObject.activeInHierarchy}");
+        Debug.Log($"[Player] PlayerInput component: {(playerInput != null ? "Found" : "MISSING")}");
+        Debug.Log($"[Player] Rigidbody2D component: {(rb != null ? "Found" : "MISSING")}");
+
         GameObject[] boundaries = GameObject.FindGameObjectsWithTag("Boundary");
         audioSource = GetComponent<AudioSource>();
 
@@ -101,9 +106,23 @@ public class Player : MonoBehaviour
 
     // ... (Rest of your Input Callbacks and Collision code remains the same) ...
 
-    public void OnMove(InputValue value) => moveInput = value.Get<Vector2>();
-    public void OnLook(InputValue value) => lookInput = value.Get<Vector2>();
-    public void OnBrake(InputValue value) => isBraking = value.isPressed;
+    public void OnMove(InputValue value)
+    {
+        moveInput = value.Get<Vector2>();
+        Debug.Log($"[Player] OnMove called: {moveInput}");
+    }
+
+    public void OnLook(InputValue value)
+    {
+        lookInput = value.Get<Vector2>();
+        Debug.Log($"[Player] OnLook called: {lookInput}");
+    }
+
+    public void OnBrake(InputValue value)
+    {
+        isBraking = value.isPressed;
+        Debug.Log($"[Player] OnBrake: {isBraking}");
+    }
 
     public void OnActivatePowerup(InputValue value)
     {

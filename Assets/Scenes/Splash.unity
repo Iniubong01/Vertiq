@@ -892,6 +892,7 @@ MonoBehaviour:
   profileImages:
   - {fileID: 1381539629}
   - {fileID: 342825489}
+  - {fileID: 541319956}
   changePfpButton: {fileID: 1381539626}
   defaultAvatars:
   - {fileID: 21300000, guid: 404d5d864a262a8448eb33cabcd201e0, type: 3}
@@ -998,7 +999,7 @@ MonoBehaviour:
   outline: {fileID: 611844440}
   lockIcon: {fileID: 1067528233}
   price: 550
-  isLocked: 1
+  isLocked: 0
   isDeployed: 0
 --- !u!114 &30333389
 MonoBehaviour:
@@ -1304,9 +1305,9 @@ RectTransform:
   - {fileID: 1003170239}
   m_Father: {fileID: 1043626144}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 447.11, y: -44.865}
   m_SizeDelta: {x: 201.61, y: 64.94}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &41797039
@@ -8526,9 +8527,9 @@ RectTransform:
   - {fileID: 1532912345}
   m_Father: {fileID: 1043626144}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 99.72, y: -44.865}
   m_SizeDelta: {x: 204.75, y: 64.94}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!225 &386743108
@@ -13440,7 +13441,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LeaderboardDisplay
   leaderboardId: vortiq_leaderboard
   contentContainer: {fileID: 1189237536}
-  maxScoresToFetch: 50
+  firstPlacePrefab: {fileID: 6246719903111975104, guid: 4ba8049c5ecf1fe4d93946d72823e84b,
+    type: 3}
+  secondPlacePrefab: {fileID: 1131124759767655356, guid: bf13c37c04ae5334fb2ad5b8dc000f66,
+    type: 3}
+  thirdPlacePrefab: {fileID: 6180603102313634778, guid: bddbc5ee6df5c904b8455609bb5d3f69,
+    type: 3}
+  standardPrefab: {fileID: 3086329104892472078, guid: 7f2900f3bb054b2498fee90dc4d5eef3,
+    type: 3}
+  standardMePrefab: {fileID: 3086329104892472078, guid: 8e1a030dccc4603449a237c45e2032c0,
+    type: 3}
+  avatarIcons:
+  - {fileID: 21300000, guid: 404d5d864a262a8448eb33cabcd201e0, type: 3}
+  - {fileID: 21300000, guid: 35d6b6ecde509a145af079df152d0e8f, type: 3}
 --- !u!114 &626751691
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13462,7 +13475,7 @@ CanvasGroup:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 626751688}
   m_Enabled: 1
-  m_Alpha: 1
+  m_Alpha: 0
   m_Interactable: 1
   m_BlocksRaycasts: 1
   m_IgnoreParentGroups: 0
@@ -15980,12 +15993,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WalletConnector
   loginPanel: {fileID: 1634494295}
-  loginPanel2: {fileID: 1634494295}
-  connectedPanel: {fileID: 1360569937}
+  loginPanel2: {fileID: 1836272774}
+  loginPanel3: {fileID: 480673916}
+  connectedPanel: {fileID: 2112066627}
   connectedPanel2: {fileID: 1473268936}
+  connectedPanel3: {fileID: 779223148}
   addressText: {fileID: 1775577457}
   addressText2: {fileID: 1556029780}
   notificationPopup: {fileID: 5347610660300725914}
+  usernameSetupPanel: {fileID: 1046482858}
+  alwaysShowUsernamePanel: 0
+  persistCheckboxState: 1
 --- !u!114 &703464286
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -25569,7 +25587,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1165912019
 RectTransform:
   m_ObjectHideFlags: 0
@@ -38950,7 +38968,7 @@ MonoBehaviour:
   outline: {fileID: 231300284}
   lockIcon: {fileID: 1174899288}
   price: 220
-  isLocked: 1
+  isLocked: 0
   isDeployed: 0
 --- !u!114 &1746531556
 MonoBehaviour:
@@ -40346,9 +40364,9 @@ RectTransform:
   - {fileID: 896351066}
   m_Father: {fileID: 1043626144}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 274.2, y: -44.865}
   m_SizeDelta: {x: 144.21, y: 64.94}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1808171987
@@ -44400,7 +44418,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1990873362}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c4afecfbe5a5dab489fa180d37af36ca, type: 3}
   m_Name: 
@@ -46650,7 +46668,7 @@ MonoBehaviour:
   outline: {fileID: 267772176}
   lockIcon: {fileID: 479514451}
   price: 350
-  isLocked: 1
+  isLocked: 0
   isDeployed: 0
 --- !u!114 &2094214346
 MonoBehaviour:
