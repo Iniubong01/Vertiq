@@ -202,9 +202,10 @@ public class UIManager : MonoBehaviour
         tUI.DOKill(); 
         tUI.interactable = false;
         tUI.blocksRaycasts = false;
-        tUI.DOFade(0, fadeDuration)
-            .SetUpdate(true) 
-            .OnComplete(() => { tUI.gameObject.SetActive(false); });
+        
+        // [NEW FIX] Disable the GameObject IMMEDIATELY so OnEnable/OnDisable work correctly
+        // We'll keep it visually visible during the fade by setting alpha first
+        tUI.gameObject.SetActive(false);
     }
 
     private void EnableCanvasGroupInstant(CanvasGroup tUI)

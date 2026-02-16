@@ -4644,9 +4644,9 @@ RectTransform:
   - {fileID: 661108200}
   m_Father: {fileID: 1470995264}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 588.82996, y: -186.155}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 366.69, y: 362.06}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!225 &181517117
@@ -13466,7 +13466,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c4afecfbe5a5dab489fa180d37af36ca, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SetFirstButton
-  firstButton: {fileID: 1273453679}
+  firstButton: {fileID: 1247990320}
 --- !u!225 &626751692
 CanvasGroup:
   m_ObjectHideFlags: 0
@@ -15998,7 +15998,7 @@ MonoBehaviour:
   connectedPanel: {fileID: 2112066627}
   connectedPanel2: {fileID: 1473268936}
   connectedPanel3: {fileID: 779223148}
-  addressText: {fileID: 1775577457}
+  addressText: {fileID: 1636297516}
   addressText2: {fileID: 1556029780}
   notificationPopup: {fileID: 5347610660300725914}
   usernameSetupPanel: {fileID: 1046482858}
@@ -18899,7 +18899,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 66abd2971bbdbd24793c1bdc291365d3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ButtonScaler
-  scaleAmount: 1
+  scaleAmount: 1.1
   animationSpeed: 0.1
   shrinkOnHoverExit: 0
 --- !u!114 &844367121
@@ -28308,7 +28308,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 66abd2971bbdbd24793c1bdc291365d3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ButtonScaler
-  scaleAmount: 1
+  scaleAmount: 1.1
   animationSpeed: 0.1
   shrinkOnHoverExit: 0
 --- !u!114 &1268545494
@@ -32372,9 +32372,9 @@ RectTransform:
   - {fileID: 1347048604}
   m_Father: {fileID: 1470995264}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 199.61, y: -186.155}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 366.69, y: 362.06}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!225 &1430381442
@@ -33585,9 +33585,9 @@ RectTransform:
   - {fileID: 181517116}
   m_Father: {fileID: 1859474551}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 390.445, y: -674.1051}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 788.44, y: 372.31}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1470995265
@@ -38632,9 +38632,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 18b5aee2bd2a4294086a302e0ca3d40b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerWalletUI
-  solBalanceText: {fileID: 1966265490}
+  solBalanceText: {fileID: 671409318}
   solBalanceText2: {fileID: 769102993}
-  tokenBalanceText: {fileID: 92739942}
+  tokenBalanceText: {fileID: 1594662653}
   tokenBalanceText2: {fileID: 1332025877}
   tokenMintAddress: PLAYs3GSSadH2q2JLS7djp7yzeT75NK78XgrE5YLrfq
   autoRefresh: 1
@@ -43831,9 +43831,9 @@ RectTransform:
   - {fileID: 2005771899}
   m_Father: {fileID: 1859474551}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 390.445, y: -286.58502}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 788.44, y: 372.31}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1963717200
@@ -44051,7 +44051,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 66abd2971bbdbd24793c1bdc291365d3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ButtonScaler
-  scaleAmount: 1
+  scaleAmount: 1.1
   animationSpeed: 0.1
   shrinkOnHoverExit: 0
 --- !u!114 &1972415314
@@ -44921,7 +44921,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 66abd2971bbdbd24793c1bdc291365d3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ButtonScaler
-  scaleAmount: 1
+  scaleAmount: 1.1
   animationSpeed: 0.1
   shrinkOnHoverExit: 0
 --- !u!114 &2012649448

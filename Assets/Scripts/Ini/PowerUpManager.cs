@@ -38,6 +38,8 @@ public class PowerUpManager : MonoBehaviour
     [SerializeField] TextMeshProUGUI S_AmountText, FT_AmountText, MB_AmountText, FL_AmountText; 
 
     private int currentSelectionIndex = 0;
+    private float lastNavigationTime = 0f;
+    private const float NAVIGATION_COOLDOWN = 0.25f; // 250ms between navigation inputs
 
     // Track active Coroutines to prevent overlaps
     private Coroutine shieldCoroutine;
@@ -118,9 +120,43 @@ public class PowerUpManager : MonoBehaviour
 
     public void Navigate(int direction)
     {
-        currentSelectionIndex += direction;
-        if (currentSelectionIndex >= powerUpButtons.Count) currentSelectionIndex = 0;
-        else if (currentSelectionIndex < 0) currentSelectionIndex = powerUpButtons.Count - 1;
+        if (isGamePaused) return; // Don't navigate while paused
+        
+        // Cooldown check to prevent rapid navigation
+        if (Time.unscaledTime - lastNavigationTime < NAVIGATION_COOLDOWN)
+        {
+            return; // Ignore this navigation input - too soon
+        }
+        
+        lastNavigationTime = Time.unscaledTime;
+        
+        int startIndex = currentSelectionIndex;
+        int attempts = 0;
+        int maxAttempts = powerUpButtons.Count; // Prevent infinite loop
+        
+        do
+        {
+            currentSelectionIndex += direction;
+            
+            // Wrap around
+            if (currentSelectionIndex >= powerUpButtons.Count) 
+                currentSelectionIndex = 0;
+            else if (currentSelectionIndex < 0) 
+                currentSelectionIndex = powerUpButtons.Count - 1;
+            
+            attempts++;
+            
+            // If we've checked all buttons and wrapped back to start, stop
+            if (attempts > maxAttempts)
+            {
+                Debug.LogWarning("[PowerUpManager] All power-ups are disabled!");
+                currentSelectionIndex = startIndex; // Stay on current selection
+                break;
+            }
+            
+        } while (!powerUpButtons[currentSelectionIndex].interactable);
+        
+        Debug.Log($"[PowerUpManager] Navigated to powerup index: {currentSelectionIndex} ({powerUpButtons[currentSelectionIndex].name})");
         UpdateSelectionVisuals();
     }
 
@@ -128,10 +164,28 @@ public class PowerUpManager : MonoBehaviour
 
     public void TriggerSelectedPowerUp()
     {
-        if (isGamePaused) return;
-        if (powerUpButtons[currentSelectionIndex].interactable)
+        if (isGamePaused) 
         {
-            powerUpButtons[currentSelectionIndex].onClick.Invoke();
+            Debug.Log("[PowerUpManager] Cannot trigger powerup - game is paused");
+            return;
+        }
+        
+        if (currentSelectionIndex < 0 || currentSelectionIndex >= powerUpButtons.Count)
+        {
+            Debug.LogWarning($"[PowerUpManager] Invalid selection index: {currentSelectionIndex}");
+            return;
+        }
+        
+        Button selectedButton = powerUpButtons[currentSelectionIndex];
+        
+        if (selectedButton.interactable)
+        {
+            Debug.Log($"[PowerUpManager] Triggering powerup: {selectedButton.name}");
+            selectedButton.onClick.Invoke();
+        }
+        else
+        {
+            Debug.LogWarning($"[PowerUpManager] Selected powerup is not interactable: {selectedButton.name}");
         }
     }
 
@@ -139,8 +193,26 @@ public class PowerUpManager : MonoBehaviour
     {
         for (int i = 0; i < powerUpButtons.Count; i++)
         {
-            if (i == currentSelectionIndex) powerUpButtons[i].transform.localScale = Vector3.one * 1.3f;
-            else powerUpButtons[i].transform.localScale = Vector3.one;
+            if (i == currentSelectionIndex)
+            {
+                // Selected button - scale up and highlight
+                powerUpButtons[i].transform.localScale = Vector3.one * 1.3f;
+                
+                // Optional: Change color to indicate selection
+                /*var colors = powerUpButtons[i].colors;
+                colors.normalColor = new Color(1f, 1f, 0.5f, 1f); // Yellow tint
+                powerUpButtons[i].colors = colors;*/
+            }
+            else
+            {
+                // Not selected - normal scale and color
+                powerUpButtons[i].transform.localScale = Vector3.one;
+                
+                // Reset to default color
+                var colors = powerUpButtons[i].colors;
+                colors.normalColor = Color.white;
+                powerUpButtons[i].colors = colors;
+            }
         }
     }
 

@@ -157,19 +157,19 @@ public class Player : MonoBehaviour
     public void OnMove(InputValue value)
     {
         moveInput = value.Get<Vector2>();
-        Debug.Log($"[Player] OnMove called: {moveInput}");
+        //Debug.Log($"[Player] OnMove called: {moveInput}");
     }
 
     public void OnLook(InputValue value)
     {
         lookInput = value.Get<Vector2>();
-        Debug.Log($"[Player] OnLook called: {lookInput}");
+        //Debug.Log($"[Player] OnLook called: {lookInput}");
     }
 
     public void OnBrake(InputValue value)
     {
         isBraking = value.isPressed;
-        Debug.Log($"[Player] OnBrake: {isBraking}");
+        //Debug.Log($"[Player] OnBrake: {isBraking}");
     }
 
     public void OnActivatePowerup(InputValue value)
