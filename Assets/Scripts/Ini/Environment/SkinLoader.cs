@@ -4,10 +4,12 @@ using UnityEngine.UI;
 public class SkinLoader : MonoBehaviour
 {
     [SerializeField] GameObject default_Player;
-     [SerializeField] GameObject secondary_Player;
+    [SerializeField] GameObject secondary_Player;
     [SerializeField] GameObject [] head_Player;
     [SerializeField] Sprite [] playerSkins;
     [SerializeField] GameObject [] environmentSkins;
+
+    [SerializeField] SpriteRenderer secondary_PlayerSprite;
 
     private int skinIndex;
     private int envSkinIndex;
@@ -49,7 +51,7 @@ public class SkinLoader : MonoBehaviour
             secondary_Player.SetActive(true);
             default_Player.SetActive(false);
 
-            secondary_Player.GetComponent<SpriteRenderer>().sprite = playerSkins[skinIndex];
+            secondary_PlayerSprite.sprite = playerSkins[skinIndex];
                         
             foreach(var obj in head_Player) 
             {
