@@ -26,19 +26,48 @@ public class LeaderboardDisplay : MonoBehaviour
 
     public async void RefreshLeaderboard()
     {
-        if (!AuthenticationService.Instance.IsSignedIn) return;
+        Debug.Log("[Leaderboard] RefreshLeaderboard called");
+        
+        if (!AuthenticationService.Instance.IsSignedIn)
+        {
+            Debug.LogWarning("[Leaderboard] User is NOT signed in - cannot fetch leaderboard");
+            return;
+        }
+        
+        Debug.Log("[Leaderboard] User is signed in - proceeding to fetch");
 
+        // Clear existing rows
+        int childCount = contentContainer.childCount;
         foreach (Transform child in contentContainer) Destroy(child.gameObject);
+        Debug.Log($"[Leaderboard] Cleared {childCount} existing rows");
 
         try
         {
+            Debug.Log($"[Leaderboard] Fetching leaderboard: {leaderboardId}");
+            
             var scoresResponse = await LeaderboardsService.Instance.GetScoresAsync(
                 leaderboardId, 
                 new GetScoresOptions { Limit = 50, IncludeMetadata = true }
             );
 
-            string myPlayerId = AuthenticationService.Instance.PlayerId;
+            if (scoresResponse == null)
+            {
+                Debug.LogError("[Leaderboard] scoresResponse is NULL!");
+                return;
+            }
+            
+            if (scoresResponse.Results == null)
+            {
+                Debug.LogError("[Leaderboard] scoresResponse.Results is NULL!");
+                return;
+            }
+            
+            Debug.Log($"[Leaderboard] Fetched {scoresResponse.Results.Count} entries");
 
+            string myPlayerId = AuthenticationService.Instance.PlayerId;
+            Debug.Log($"[Leaderboard] My Player ID: {myPlayerId}");
+
+            int processedCount = 0;
             foreach (var entry in scoresResponse.Results)
             {
                 int avatarIndex = 0; 
@@ -53,33 +82,79 @@ public class LeaderboardDisplay : MonoBehaviour
                 }
 
                 bool isMe = (entry.PlayerId == myPlayerId);
+                Debug.Log($"[Leaderboard] Processing entry {processedCount + 1}: Rank={entry.Rank + 1}, Name={entry.PlayerName}, Score={entry.Score}, IsMe={isMe}");
+                
                 CreateLeaderboardRow(entry.Rank + 1, entry.PlayerName, entry.Score, avatarIndex, isMe);
+                processedCount++;
             }
+            
+            Debug.Log($"[Leaderboard] ✅ Successfully processed {processedCount} leaderboard entries");
         }
-        catch (System.Exception e) { Debug.LogError($"Fetch Failed: {e.Message}"); }
+        catch (System.Exception e) 
+        { 
+            Debug.LogError($"[Leaderboard] ❌ Fetch Failed: {e.Message}");
+            Debug.LogError($"[Leaderboard] Stack trace: {e.StackTrace}");
+        }
     }
 
     private void CreateLeaderboardRow(int rank, string playerName, double score, int avatarIndex, bool isMe)
     {
+        Debug.Log($"[Leaderboard] CreateLeaderboardRow called - Rank: {rank}, Name: {playerName}, Score: {score}, IsMe: {isMe}");
+        
         // 1. CHOOSE PREFAB
         GameObject prefabToUse = standardPrefab; 
 
         if (rank == 1 && firstPlacePrefab != null) 
+        {
             prefabToUse = firstPlacePrefab;
+            Debug.Log("[Leaderboard] Using firstPlacePrefab");
+        }
         else if (rank == 2 && secondPlacePrefab != null) 
+        {
             prefabToUse = secondPlacePrefab;
+            Debug.Log("[Leaderboard] Using secondPlacePrefab");
+        }
         else if (rank == 3 && thirdPlacePrefab != null) 
+        {
             prefabToUse = thirdPlacePrefab;
+            Debug.Log("[Leaderboard] Using thirdPlacePrefab");
+        }
         else
         {
             // Rank 4 and below
             if (isMe && standardMePrefab != null) 
-                prefabToUse = standardMePrefab; 
+            {
+                prefabToUse = standardMePrefab;
+                Debug.Log("[Leaderboard] Using standardMePrefab");
+            }
             else 
+            {
                 prefabToUse = standardPrefab;
+                Debug.Log("[Leaderboard] Using standardPrefab");
+            }
+        }
+
+        if (prefabToUse == null)
+        {
+            Debug.LogError($"[Leaderboard] ❌ No prefab available for rank {rank}! Check Inspector assignments.");
+            return;
+        }
+        
+        if (contentContainer == null)
+        {
+            Debug.LogError("[Leaderboard] ❌ contentContainer is NULL! Cannot instantiate row.");
+            return;
         }
 
         GameObject newRow = Instantiate(prefabToUse, contentContainer);
+        
+        if (newRow == null)
+        {
+            Debug.LogError($"[Leaderboard] ❌ Failed to instantiate prefab for rank {rank}!");
+            return;
+        }
+        
+        Debug.Log($"[Leaderboard] ✅ Successfully instantiated row for rank {rank}");
         
         // 2. DEFINE COLORS
         Color rankColor = Color.white; 
