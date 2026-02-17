@@ -26,20 +26,9 @@ public class LeaderboardDisplay : MonoBehaviour
 
     public async void RefreshLeaderboard()
     {
-        Debug.Log("[Leaderboard] RefreshLeaderboard called");
-        
-        if (!AuthenticationService.Instance.IsSignedIn)
-        {
-            Debug.LogWarning("[Leaderboard] User is NOT signed in - cannot fetch leaderboard");
-            return;
-        }
-        
-        Debug.Log("[Leaderboard] User is signed in - proceeding to fetch");
+        if (!AuthenticationService.Instance.IsSignedIn) return;
 
-        // Clear existing rows
-        int childCount = contentContainer.childCount;
         foreach (Transform child in contentContainer) Destroy(child.gameObject);
-        Debug.Log($"[Leaderboard] Cleared {childCount} existing rows");
 
         try
         {
@@ -82,7 +71,8 @@ public class LeaderboardDisplay : MonoBehaviour
                 }
 
                 bool isMe = (entry.PlayerId == myPlayerId);
-                Debug.Log($"[Leaderboard] Processing entry {processedCount + 1}: Rank={entry.Rank + 1}, Name={entry.PlayerName}, Score={entry.Score}, IsMe={isMe}");
+                Debug.Log($"[Leaderboard] Processing entry {processedCount + 1}: Rank={entry.Rank + 1}, Name={entry.PlayerName}, Score={entry.Score}");
+                Debug.Log($"[Leaderboard] IsMe Check: entry.PlayerId='{entry.PlayerId}' vs myPlayerId='{myPlayerId}' -> IsMe={isMe}");
                 
                 CreateLeaderboardRow(entry.Rank + 1, entry.PlayerName, entry.Score, avatarIndex, isMe);
                 processedCount++;
@@ -136,13 +126,12 @@ public class LeaderboardDisplay : MonoBehaviour
 
         if (prefabToUse == null)
         {
-            Debug.LogError($"[Leaderboard] ❌ No prefab available for rank {rank}! Check Inspector assignments.");
             return;
         }
         
         if (contentContainer == null)
         {
-            Debug.LogError("[Leaderboard] ❌ contentContainer is NULL! Cannot instantiate row.");
+
             return;
         }
 
@@ -150,11 +139,10 @@ public class LeaderboardDisplay : MonoBehaviour
         
         if (newRow == null)
         {
-            Debug.LogError($"[Leaderboard] ❌ Failed to instantiate prefab for rank {rank}!");
+
             return;
         }
-        
-        Debug.Log($"[Leaderboard] ✅ Successfully instantiated row for rank {rank}");
+
         
         // 2. DEFINE COLORS
         Color rankColor = Color.white; 

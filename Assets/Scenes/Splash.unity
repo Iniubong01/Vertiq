@@ -4131,7 +4131,19 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 1679651427}
         m_TargetAssemblyTypeName: UIManager, Assembly-CSharp
-        m_MethodName: LeaderboardToMenu
+        m_MethodName: MenuToLeaderboard
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+      - m_Target: {fileID: 626751690}
+        m_TargetAssemblyTypeName: LeaderboardDisplay, Assembly-CSharp
+        m_MethodName: RefreshLeaderboard
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -37265,7 +37277,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 1679651427}
         m_TargetAssemblyTypeName: UIManager, Assembly-CSharp
-        m_MethodName: MenuToLeaderboard
+        m_MethodName: LeaderboardToMenu
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -54108,7 +54120,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 40317030e00564e47a6ede2b1066a19b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DualLeaderboardManager
-  soarManager: {fileID: 0}
   unityLeaderboardId: vortiq_leaderboard
 --- !u!4 &1770323070
 Transform:

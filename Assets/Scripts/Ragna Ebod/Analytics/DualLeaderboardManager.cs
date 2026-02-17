@@ -10,9 +10,6 @@ public class DualLeaderboardManager : MonoBehaviour
 {
     public static DualLeaderboardManager Instance { get; private set; }
 
-    [Header("Web3 Setup")]
-    public SoarLeaderboardManager soarManager; 
-
     [Header("Web2 Setup")]
     public string unityLeaderboardId = "vortiq_leaderboard"; 
 

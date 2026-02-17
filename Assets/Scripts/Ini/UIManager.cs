@@ -84,6 +84,13 @@ public class UIManager : MonoBehaviour
 
         // Play a different audio in Splash scene
         SoundManager.Instance.EnableSplashAS();
+        
+        // Refresh leaderboard on start so it's ready when user opens it
+        LeaderboardDisplay leaderboardDisplay = FindAnyObjectByType<LeaderboardDisplay>();
+        if (leaderboardDisplay != null)
+        {
+            leaderboardDisplay.RefreshLeaderboard();
+        }
     }
 
     private void ResetAllUI()
@@ -150,8 +157,34 @@ public class UIManager : MonoBehaviour
     public void StoreToMenu() { SetCanvasGroupInActive(storeUICG); SetCanvasGroupActive(menuUICG); PlayClickSound(); }
     public void StoreToSolStore() { SetCanvasGroupInActive(storeUICG); SetCanvasGroupActive(solStoreUICG); PlayClickSound(); }
     public void SolStoreToStore() { SetCanvasGroupInActive(solStoreUICG); SetCanvasGroupActive(storeUICG); PlayClickSound(); }
-    public void LeaderboardToMenu() { SetCanvasGroupInActive(menuUICG); SetCanvasGroupActive(leaderboardUICG); PlayClickSound(); }
-    public void MenuToLeaderboard() { SetCanvasGroupInActive(leaderboardUICG); SetCanvasGroupActive(menuUICG); PlayClickSound(); }
+    public void MenuToLeaderboard() { SetCanvasGroupInActive(menuUICG); SetCanvasGroupActive(leaderboardUICG); PlayClickSound(); }
+    public void LeaderboardToMenu() { SetCanvasGroupInActive(leaderboardUICG); SetCanvasGroupActive(menuUICG); PlayClickSound(); }
+
+    // FIXED: These were swapped! MenuToLeaderboard should OPEN the leaderboard, not close it
+    /*public void MenuToLeaderboard() 
+    { 
+        SetCanvasGroupInActive(menuUICG); 
+        SetCanvasGroupActive(leaderboardUICG); 
+        PlayClickSound();
+        
+        // Call RefreshLeaderboard to load the data
+        LeaderboardDisplay leaderboardDisplay = FindAnyObjectByType<LeaderboardDisplay>();
+        if (leaderboardDisplay != null)
+        {
+            leaderboardDisplay.RefreshLeaderboard();
+        }
+        else
+        {
+            Debug.LogError("[UIManager] LeaderboardDisplay component not found in scene!");
+        }
+    }
+    
+    public void LeaderboardToMenu() 
+    { 
+        SetCanvasGroupInActive(leaderboardUICG); 
+        SetCanvasGroupActive(menuUICG); 
+        PlayClickSound(); 
+    }*/
 
     public IEnumerator ShowLoadingUI(CanvasGroup targetUI)
     {
