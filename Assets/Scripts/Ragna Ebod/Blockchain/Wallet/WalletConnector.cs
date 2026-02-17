@@ -151,37 +151,49 @@ public class WalletConnector : MonoBehaviour
 
     private async void OnLoginSuccess(Account account, bool suppressNotification)
     {
-        PlayerAccount = account;
-        UserPublicKey = account.PublicKey;
-        
-        PlayerPrefs.SetInt(AUTO_CONNECT_KEY, 1);
-        PlayerPrefs.Save();
-
-        UpdateConnectedUI(account.PublicKey.ToString());
-        
-        if (!suppressNotification) 
-            notificationPopup?.Show("Success!", "Wallet Connected", Color.green);
-
-        if (DualLeaderboardManager.Instance != null)
+        try
         {
-            // Wrap Login in try-catch so an error here doesn't kill the Username check logic
-            try 
-            {
-                await DualLeaderboardManager.Instance.LoginToUnity(account.PublicKey.ToString());
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[Wallet] Unity Login Error: {ex.Message}");
-                if (!suppressNotification)
-                    notificationPopup?.Show("Warning", "Wallet connected but leaderboard login failed.", Color.yellow);
-            }
+            PlayerAccount = account;
+            UserPublicKey = account.PublicKey;
+            
+            PlayerPrefs.SetInt(AUTO_CONNECT_KEY, 1);
+            PlayerPrefs.Save();
 
-            // Check username logic immediately after login attempt
-            CheckAndPromptUsername();
+            UpdateConnectedUI(account.PublicKey.ToString());
+            
+            if (!suppressNotification) 
+                notificationPopup?.Show("Success!", "Wallet Connected", Color.green);
+
+            if (DualLeaderboardManager.Instance != null)
+            {
+                // Wrap Login in try-catch so an error here doesn't kill the Username check logic
+                try 
+                {
+                    await DualLeaderboardManager.Instance.LoginToUnity(account.PublicKey.ToString());
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[Wallet] Unity Login Error: {ex.Message}");
+                    if (!suppressNotification)
+                        notificationPopup?.Show("Warning", "Wallet connected but leaderboard login failed.", Color.yellow);
+                }
+
+                // Check username logic immediately after login attempt
+                CheckAndPromptUsername();
+            }
+            else
+            {
+                Debug.LogWarning("[Wallet] DualLeaderboardManager not found - skipping leaderboard login");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Debug.LogWarning("[Wallet] DualLeaderboardManager not found - skipping leaderboard login");
+            // Catch any unhandled exceptions to prevent crashes
+            Debug.LogWarning($"[Wallet] Critical error in OnLoginSuccess: {ex.Message}");
+            Debug.LogWarning($"[Wallet] Stack trace: {ex.StackTrace}");
+            
+            if (!suppressNotification)
+                notificationPopup?.Show("Error", "Wallet connection completed with errors.", Color.red);
         }
     }
 

@@ -29,13 +29,23 @@ public class DualLeaderboardManager : MonoBehaviour
 
     private async void Start()
     {
+        // Auto-find NotificationPopup if not assigned
+        if (notificationPopup == null)
+        {
+            notificationPopup = FindFirstObjectByType<NotificationPopup>();
+            if (notificationPopup == null)
+            {
+                Debug.LogWarning("[DualLeaderboardManager] NotificationPopup not found in scene. User feedback will be limited.");
+            }
+        }
+        
         try 
         { 
             await UnityServices.InitializeAsync(); 
         }
         catch (System.Exception e) 
         { 
-            Debug.LogError($"Unity Services Init Error: {e.Message}");
+            Debug.LogWarning($"[DualLeaderboardManager] Unity Services Init Error: {e.Message}");
             ShowNotification("Service Error", "Failed to initialize services. Some features may be unavailable.", Color.red);
         }
     }
@@ -55,7 +65,7 @@ public class DualLeaderboardManager : MonoBehaviour
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"[Leaderboard] Failed to update username: {e.Message}");
+            Debug.LogWarning($"[Leaderboard] Failed to update username: {e.Message}");
             ShowNotification("Warning", "Username saved locally but could not sync to cloud.", Color.yellow);
         }
     }
@@ -88,7 +98,7 @@ public class DualLeaderboardManager : MonoBehaviour
         }
         catch (System.Exception e) 
         { 
-            Debug.LogError($"[Web2] Login Failed: {e.Message}");
+            Debug.LogWarning($"[Web2] Login Failed: {e.Message}");
             ShowNotification("Login Failed", "Could not authenticate with leaderboard service.", Color.red);
         }
     }
@@ -147,7 +157,7 @@ public class DualLeaderboardManager : MonoBehaviour
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"[Web2] Failed: {e.Message}");
+            Debug.LogWarning($"[Web2] Failed to submit score: {e.Message}");
             
             // Provide specific error messages based on exception type
             string userMessage = "Could not save score to leaderboard.";
@@ -177,13 +187,22 @@ public class DualLeaderboardManager : MonoBehaviour
     
     private void ShowNotification(string title, string message, Color color)
     {
-        if (notificationPopup != null)
+        try
         {
-            notificationPopup.Show(title, message, color);
+            if (notificationPopup != null)
+            {
+                notificationPopup.Show(title, message, color);
+            }
+            else
+            {
+                // Fallback if notification popup not available
+                Debug.Log($"[Notification] {title}: {message}");
+            }
         }
-        else
+        catch (System.Exception e)
         {
-            Debug.Log($"[Notification] {title}: {message}");
+            // Prevent notification system from crashing the game
+            Debug.LogWarning($"[DualLeaderboardManager] Failed to show notification: {e.Message}");
         }
     }
 }

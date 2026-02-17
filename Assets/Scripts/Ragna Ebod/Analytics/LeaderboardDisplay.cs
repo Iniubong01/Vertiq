@@ -25,7 +25,20 @@ public class LeaderboardDisplay : MonoBehaviour
     public Sprite[] avatarIcons;
     
     [Header("UI Feedback")]
-    public NotificationPopup notificationPopup; 
+    public NotificationPopup notificationPopup;
+    
+    private void Start()
+    {
+        // Auto-find NotificationPopup if not assigned
+        if (notificationPopup == null)
+        {
+            notificationPopup = FindFirstObjectByType<NotificationPopup>();
+            if (notificationPopup == null)
+            {
+                Debug.LogWarning("[LeaderboardDisplay] NotificationPopup not found in scene.");
+            }
+        }
+    } 
 
     public async void RefreshLeaderboard()
     {
@@ -270,13 +283,20 @@ public class LeaderboardDisplay : MonoBehaviour
     
     private void ShowNotification(string title, string message, Color color)
     {
-        if (notificationPopup != null)
+        try
         {
-            notificationPopup.Show(title, message, color);
+            if (notificationPopup != null)
+            {
+                notificationPopup.Show(title, message, color);
+            }
+            else
+            {
+                Debug.Log($"[Notification] {title}: {message}");
+            }
         }
-        else
+        catch (System.Exception e)
         {
-            Debug.Log($"[Notification] {title}: {message}");
+            Debug.LogWarning($"[LeaderboardDisplay] Failed to show notification: {e.Message}");
         }
     }
 }
