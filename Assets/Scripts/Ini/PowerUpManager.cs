@@ -23,7 +23,6 @@ public class PowerUpManager : MonoBehaviour
 
     [SerializeField] private float powerUpDuration;
     private Player player;
-    public GameObject shield, bullets;
 
     [Header("UI Buttons")]
     [SerializeField] Button SButton;      
@@ -234,8 +233,10 @@ public class PowerUpManager : MonoBehaviour
         {
             if(player != null) originalPowerLevel = player.powerLevel;
             multipleBulletsActive = true;
-            if(player != null) player.powerLevel = 4;
-            bullets.SetActive(true);
+            if(player != null) player.powerLevel = 4 + player.bulletUpgradeValue;
+            //? Todo: Fix this using player.cs
+            // bullets.SetActive(true);
+            player.SetBulletVisualActive();
         }
 
         // Restart timer
@@ -248,7 +249,9 @@ public class PowerUpManager : MonoBehaviour
         
         // Restore
         if(player != null) player.powerLevel = originalPowerLevel;
-        bullets.SetActive(false);
+        //? Todo: Fix this using player.cs
+        // bullets.SetActive(false);
+        player.SetBulletVisualInActive();
         multipleBulletsActive = false;
         mbCoroutine = null;
     }
@@ -266,7 +269,9 @@ public class PowerUpManager : MonoBehaviour
         if (!shieldActive)
         {
             shieldActive = true;
-            shield.SetActive(true);
+            //? Todo: Fix this using player.cs
+            // shield.SetActive(true);
+            player.SetShieldVisualActive();
         }
 
         shieldCoroutine = StartCoroutine(ResetShield(powerUpDuration));
@@ -276,7 +281,9 @@ public class PowerUpManager : MonoBehaviour
     {
         yield return new WaitForSeconds(duration);
         shieldActive = false;
-        shield.SetActive(false);
+        //? Todo: Fix this using player.cs
+        // shield.SetActive(false);
+        player.SetShieldVisualInActive();
         shieldCoroutine = null;
     }
 
@@ -351,7 +358,7 @@ public class PowerUpManager : MonoBehaviour
         {
             case PowerUpType.Shield:
                 if (shieldCoroutine != null) StopCoroutine(shieldCoroutine);
-                if (!shieldActive) { shieldActive = true; shield.SetActive(true); }
+                if (!shieldActive) { shieldActive = true; player.SetShieldVisualActive(); }
                 shieldCoroutine = StartCoroutine(ResetShield(duration));
                 break;
 
@@ -361,7 +368,8 @@ public class PowerUpManager : MonoBehaviour
                     if(player != null) originalPowerLevel = player.powerLevel;
                     multipleBulletsActive = true;
                     if(player != null) player.powerLevel = 4;
-                    bullets.SetActive(true);
+                    player.SetBulletVisualActive();
+                    
                 }
                 mbCoroutine = StartCoroutine(ResetMultipleBullets(duration));
                 break;

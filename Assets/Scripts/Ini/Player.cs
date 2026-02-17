@@ -56,6 +56,10 @@ public class Player : MonoBehaviour
     [SerializeField] private Sprite left;
     [SerializeField] private Sprite right;
     [SerializeField] private Animator playerAnim;
+    
+    [SerializeField] private GameObject shield, bullet;
+    public int bulletUpgradeValue;
+
 
     private void Awake()
     {
@@ -124,7 +128,7 @@ public class Player : MonoBehaviour
 
         if (screenWrapping) ScreenWrap();
 
-        // LOGIC FOR ANIMATED PLAYER HEAD
+        // LOGIC FOR ANIMATED HEAD PLAYER
         if (playerType != PlayerType.AnimatedHead) return;
 
         // --- Animated Head Sprite Switching ---
@@ -150,7 +154,7 @@ public class Player : MonoBehaviour
             if (playerAnim != null && !playerAnim.enabled)
                 playerAnim.enabled = true;
         }
-        // END OF LOGIC FOR ANIMATED PLAYER HEADS
+        // END OF LOGIC FOR ANIMATED HEAD PLAYER
         
     }
 
@@ -275,4 +279,12 @@ public class Player : MonoBehaviour
 
     public void enableShooting() => canShoot = true;
     public void preventShooting() => canShoot = false;
+
+    #region Powerup Visual Helpers
+    // Unique Powerup visual helpers
+    public void SetBulletVisualActive() => bullet.SetActive(true);
+    public void SetBulletVisualInActive() => bullet.SetActive(false);
+    public void SetShieldVisualActive() => shield.SetActive(true);
+    public void SetShieldVisualInActive() => shield.SetActive(false);
+    #endregion
 }

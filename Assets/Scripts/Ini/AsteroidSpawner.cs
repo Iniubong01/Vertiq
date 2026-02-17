@@ -25,6 +25,8 @@ public class AsteroidSpawner : MonoBehaviour
     private float elapsedTime = 0f;
     private float spawnTimer = 0f;
     private float currentSpawnInterval = 1f;
+    //? Todo: Fix this using player.cs
+    [SerializeField] private Transform asteroidParent;
 
     private void Start()
     {
@@ -78,7 +80,8 @@ public class AsteroidSpawner : MonoBehaviour
             float randomSize = Random.Range(prefab.minSize, prefab.maxSize);
             
             // 5. Create Asteroid with proper instantiation
-            Asteroid asteroid = Instantiate(prefab, spawnPoint, rotation);
+            // 5b. Added a parent where where they are spawned into; hierarchy cleanup
+            Asteroid asteroid = Instantiate(prefab, spawnPoint, rotation, asteroidParent);
             
             // 6. Initialize with size BEFORE Start() runs (this happens immediately after Instantiate)
             asteroid.Initialize(randomSize);
