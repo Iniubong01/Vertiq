@@ -998,7 +998,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 611844440}
   lockIcon: {fileID: 1067528233}
-  price: 335
+  price: 385
   isLocked: 1
   isDeployed: 0
 --- !u!114 &30333389
@@ -17319,7 +17319,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 806416645}
   lockIcon: {fileID: 688350298}
-  price: 400
+  price: 500
   isLocked: 1
   isDeployed: 0
 --- !u!225 &574973287
@@ -17479,7 +17479,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 670980381}
   lockIcon: {fileID: 716423158}
-  price: 595
+  price: 695
   isLocked: 0
   isDeployed: 0
 --- !u!114 &576424530
@@ -24947,7 +24947,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2005771899}
+  - {fileID: 1746531552}
   - {fileID: 1269684162}
   m_Father: {fileID: 419591755}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -32994,7 +32994,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 1048812199}
   lockIcon: {fileID: 354471420}
-  price: 850
+  price: 950
   isLocked: 1
   isDeployed: 0
 --- !u!114 &1081372359
@@ -41840,7 +41840,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 1102446324}
   lockIcon: {fileID: 586378726}
-  price: 650
+  price: 750
   isLocked: 0
   isDeployed: 0
 --- !u!114 &1403906795
@@ -42085,7 +42085,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 710725573}
   lockIcon: {fileID: 1347048603}
-  price: 287
+  price: 317
   isLocked: 1
   isDeployed: 0
 --- !u!114 &1430381444
@@ -43263,7 +43263,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1746531552}
+  - {fileID: 2005771899}
   - {fileID: 181517116}
   m_Father: {fileID: 1859474551}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -53449,7 +53449,7 @@ RectTransform:
   - {fileID: 231300285}
   - {fileID: 756335984}
   - {fileID: 1174899289}
-  m_Father: {fileID: 1470995264}
+  m_Father: {fileID: 928547234}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
@@ -53497,7 +53497,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 231300284}
   lockIcon: {fileID: 1174899288}
-  price: 291
+  price: 400
   isLocked: 1
   isDeployed: 0
 --- !u!114 &1746531556
@@ -64112,7 +64112,7 @@ RectTransform:
   - {fileID: 1279436975}
   - {fileID: 382014486}
   - {fileID: 1521212003}
-  m_Father: {fileID: 928547234}
+  m_Father: {fileID: 1470995264}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
@@ -64145,7 +64145,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 1279436974}
   lockIcon: {fileID: 1521212002}
-  price: 350
+  price: 341
   isLocked: 1
   isDeployed: 0
 --- !u!114 &2005771902
@@ -65736,7 +65736,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 1194752166}
   lockIcon: {fileID: 1787306281}
-  price: 680
+  price: 780
   isLocked: 0
   isDeployed: 0
 --- !u!114 &2079344761
@@ -66044,7 +66044,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 267772176}
   lockIcon: {fileID: 479514451}
-  price: 300
+  price: 350
   isLocked: 1
   isDeployed: 0
 --- !u!114 &2094214346
@@ -66575,7 +66575,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 888389959}
   lockIcon: {fileID: 1706034001}
-  price: 400
+  price: 500
   isLocked: 1
   isDeployed: 0
 --- !u!225 &2109921493

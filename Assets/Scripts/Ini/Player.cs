@@ -224,7 +224,6 @@ public class Player : MonoBehaviour
 
     public void Shoot()
     {
-        
         int bulletCount = Mathf.Clamp(powerLevel, 1, 10);
         float totalSpread = (bulletCount - 1) * spreadAngle;
 
@@ -232,11 +231,14 @@ public class Player : MonoBehaviour
         {
             float angleOffset = -totalSpread / 2f + i * spreadAngle;
             Quaternion rotation = transform.rotation * Quaternion.Euler(0, 0, angleOffset);
-            Bullet bullet = Instantiate(bulletPrefab, bulletSpawnPoint.transform.position, rotation);
-            bullet.Shoot(rotation * Vector2.up);
+
+            // Get from pool using this player's specific bullet prefab
+            Bullet bullet = BulletPool.Instance.Get(bulletPrefab);
+            bullet.transform.SetPositionAndRotation(bulletSpawnPoint.transform.position, rotation);
+            bullet.Shoot(rotation * Vector2.up, bulletPrefab);
         }
-        
-        if(audioSource && shootClip) audioSource.PlayOneShot(shootClip);
+
+        if (audioSource && shootClip) audioSource.PlayOneShot(shootClip);
     }
 
     private void OnEnable()
