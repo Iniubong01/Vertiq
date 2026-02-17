@@ -51,13 +51,13 @@ public class MenuInputHandler : MonoBehaviour
 
     private void OnStartButtonPressed(InputAction.CallbackContext context)
     {
-        Debug.Log("[MenuInput] Start button pressed - Starting game");
+        //Debug.Log("[MenuInput] Start button pressed - Starting game");
         StartGame();
     }
 
     private void OnSelectButtonPressed(InputAction.CallbackContext context)
     {
-        Debug.Log("[MenuInput] Select button pressed - Opening store");
+        //Debug.Log("[MenuInput] Select button pressed - Opening store");
         OpenStore();
     }
 
@@ -78,7 +78,7 @@ public class MenuInputHandler : MonoBehaviour
         }
 
         // Fallback: Load the game scene directly
-        Debug.Log($"[MenuInput] Loading game scene: {gameSceneName}");
+        //Debug.Log($"[MenuInput] Loading game scene: {gameSceneName}");
         if (SoundManager.Instance != null)
         {
             SoundManager.Instance.PlayButtonSound();
@@ -103,6 +103,6 @@ public class MenuInputHandler : MonoBehaviour
         }
 
         // Fallback: Log warning
-        Debug.LogWarning("[MenuInput] Store button not assigned or not interactable!");
+        //Debug.LogWarning("[MenuInput] Store button not assigned or not interactable!");
     }
 }

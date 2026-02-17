@@ -10,7 +10,7 @@ public class SetFirstButton : MonoBehaviour
 
     private void OnEnable()
     {
-        Debug.Log($"[SetFirstButton] OnEnable called for {gameObject.name} - Starting button selection");
+        //Debug.Log($"[SetFirstButton] OnEnable called for {gameObject.name} - Starting button selection");
         
         // Use a coroutine to ensure the selection happens after the panel is fully active
         if (firstButton != null)
@@ -27,14 +27,14 @@ public class SetFirstButton : MonoBehaviour
         // Verify EventSystem exists
         if (EventSystem.current == null)
         {
-            Debug.LogWarning("[SetFirstButton] No EventSystem found in scene!");
+            //Debug.LogWarning("[SetFirstButton] No EventSystem found in scene!");
             yield break;
         }
 
         // Verify the button is active and interactable
         if (!firstButton.activeInHierarchy)
         {
-            Debug.LogWarning($"[SetFirstButton] Button {firstButton.name} is not active!");
+            //Debug.LogWarning($"[SetFirstButton] Button {firstButton.name} is not active!");
             yield break;
         }
 
@@ -42,7 +42,7 @@ public class SetFirstButton : MonoBehaviour
         var button = firstButton.GetComponent<Button>();
         if (button != null && !button.interactable)
         {
-            Debug.LogWarning($"[SetFirstButton] Button {firstButton.name} is not interactable!");
+            //Debug.LogWarning($"[SetFirstButton] Button {firstButton.name} is not interactable!");
             yield break;
         }
 
@@ -58,11 +58,11 @@ public class SetFirstButton : MonoBehaviour
         // Verify the selection was successful
         if (EventSystem.current.currentSelectedGameObject == firstButton)
         {
-            Debug.Log($"[SetFirstButton] ✅ Successfully selected {firstButton.name}");
+            //Debug.Log($"[SetFirstButton] ✅ Successfully selected {firstButton.name}");
         }
         else
         {
-            Debug.LogWarning($"[SetFirstButton] ❌ Failed to select {firstButton.name}");
+            //Debug.LogWarning($"[SetFirstButton] ❌ Failed to select {firstButton.name}");
         }
     }
 }

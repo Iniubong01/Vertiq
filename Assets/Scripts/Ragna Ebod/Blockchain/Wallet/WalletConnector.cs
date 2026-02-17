@@ -172,10 +172,16 @@ public class WalletConnector : MonoBehaviour
             catch (Exception ex)
             {
                 Debug.LogError($"[Wallet] Unity Login Error: {ex.Message}");
+                if (!suppressNotification)
+                    notificationPopup?.Show("Warning", "Wallet connected but leaderboard login failed.", Color.yellow);
             }
 
             // Check username logic immediately after login attempt
             CheckAndPromptUsername();
+        }
+        else
+        {
+            Debug.LogWarning("[Wallet] DualLeaderboardManager not found - skipping leaderboard login");
         }
     }
 
@@ -204,27 +210,34 @@ public class WalletConnector : MonoBehaviour
         }
 
         // If no local username, check Unity Authentication
-        if (AuthenticationService.Instance.IsSignedIn)
+        try
         {
-            string currentName = AuthenticationService.Instance.PlayerName;
-            
-            // Invalid if empty OR contains '#' (default names are like Player#1234)
-            bool isInvalidName = string.IsNullOrEmpty(currentName) || currentName.Contains("#");
-
-            if (isInvalidName)
+            if (AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn)
             {
-                Debug.Log($"[Wallet] Opening Panel: No valid username found (Unity name: '{currentName}').");
-                _pendingUsernamePrompt = true;
-                AttemptShowUsernamePanel();
+                string currentName = AuthenticationService.Instance.PlayerName;
+                
+                // Invalid if empty OR contains '#' (default names are like Player#1234)
+                bool isInvalidName = string.IsNullOrEmpty(currentName) || currentName.Contains("#");
+
+                if (isInvalidName)
+                {
+                    Debug.Log($"[Wallet] Opening Panel: No valid username found (Unity name: '{currentName}').");
+                    _pendingUsernamePrompt = true;
+                    AttemptShowUsernamePanel();
+                }
+                else
+                {
+                    Debug.Log($"[Wallet] Panel Skipped: Valid Unity username exists: '{currentName}'");
+                }
             }
             else
             {
-                Debug.Log($"[Wallet] Panel Skipped: Valid Unity username exists: '{currentName}'");
+                Debug.LogWarning("[Wallet] AuthenticationService not available or user not signed in.");
             }
         }
-        else
+        catch (Exception ex)
         {
-            Debug.LogWarning("[Wallet] Panel Skipped: User NOT Signed into Unity Services.");
+            Debug.LogWarning($"[Wallet] Error checking username: {ex.Message}");
         }
     }
 

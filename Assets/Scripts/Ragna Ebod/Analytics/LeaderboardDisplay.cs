@@ -22,11 +22,33 @@ public class LeaderboardDisplay : MonoBehaviour
     public GameObject standardMePrefab;     // For YOU (Rank 4+)
 
     [Header("Assets")]
-    public Sprite[] avatarIcons; 
+    public Sprite[] avatarIcons;
+    
+    [Header("UI Feedback")]
+    public NotificationPopup notificationPopup; 
 
     public async void RefreshLeaderboard()
     {
-        if (!AuthenticationService.Instance.IsSignedIn) return;
+        // Check if authentication service is available
+        if (AuthenticationService.Instance == null)
+        {
+            Debug.LogError("[Leaderboard] AuthenticationService not available");
+            ShowNotification("Service Error", "Leaderboard service unavailable.", Color.red);
+            return;
+        }
+        
+        if (!AuthenticationService.Instance.IsSignedIn)
+        {
+            Debug.LogWarning("[Leaderboard] User not signed in, cannot fetch leaderboard");
+            return;
+        }
+
+        if (contentContainer == null)
+        {
+            Debug.LogError("[Leaderboard] Content container is null!");
+            ShowNotification("UI Error", "Leaderboard UI not properly configured.", Color.red);
+            return;
+        }
 
         foreach (Transform child in contentContainer) Destroy(child.gameObject);
 
@@ -41,13 +63,15 @@ public class LeaderboardDisplay : MonoBehaviour
 
             if (scoresResponse == null)
             {
-                Debug.LogError("[Leaderboard] scoresResponse is NULL!");
+                //Debug.LogError("[Leaderboard] scoresResponse is NULL!");
+                ShowNotification("Fetch Failed", "Could not retrieve leaderboard data.", Color.red);
                 return;
             }
             
             if (scoresResponse.Results == null)
             {
-                Debug.LogError("[Leaderboard] scoresResponse.Results is NULL!");
+                //Debug.LogError("[Leaderboard] scoresResponse.Results is NULL!");
+                ShowNotification("Fetch Failed", "Leaderboard data is empty.", Color.red);
                 return;
             }
             
@@ -67,7 +91,10 @@ public class LeaderboardDisplay : MonoBehaviour
                         var data = JsonConvert.DeserializeObject<Dictionary<string, string>>(entry.Metadata);
                         if (data.ContainsKey("avatar")) int.TryParse(data["avatar"], out avatarIndex);
                     }
-                    catch {}
+                    catch (System.Exception e)
+                    {
+                        Debug.LogWarning($"[Leaderboard] Failed to parse metadata for entry: {e.Message}");
+                    }
                 }
 
                 bool isMe = (entry.PlayerId == myPlayerId);
@@ -84,6 +111,19 @@ public class LeaderboardDisplay : MonoBehaviour
         { 
             Debug.LogError($"[Leaderboard] ❌ Fetch Failed: {e.Message}");
             Debug.LogError($"[Leaderboard] Stack trace: {e.StackTrace}");
+            
+            // Provide user-friendly error messages
+            string userMessage = "Could not load leaderboard.";
+            if (e.Message.Contains("network") || e.Message.Contains("timeout") || e.Message.Contains("connection"))
+            {
+                userMessage = "Network error. Check your connection.";
+            }
+            else if (e.Message.Contains("unauthorized") || e.Message.Contains("authentication"))
+            {
+                userMessage = "Authentication failed. Please reconnect.";
+            }
+            
+            ShowNotification("Fetch Failed", userMessage, Color.red);
         }
     }
 
@@ -126,12 +166,14 @@ public class LeaderboardDisplay : MonoBehaviour
 
         if (prefabToUse == null)
         {
+            Debug.LogError($"[Leaderboard] No prefab available for rank {rank}");
+            //ShowNotification("UI Error", "Missing leaderboard row prefab.", Color.yellow);
             return;
         }
         
         if (contentContainer == null)
         {
-
+            Debug.LogError("[Leaderboard] Content container is null!");
             return;
         }
 
@@ -139,7 +181,7 @@ public class LeaderboardDisplay : MonoBehaviour
         
         if (newRow == null)
         {
-
+            Debug.LogError($"[Leaderboard] Failed to instantiate row for rank {rank}");
             return;
         }
 
@@ -201,8 +243,15 @@ public class LeaderboardDisplay : MonoBehaviour
             // Local Override for ME
             if (isMe && ProfilePictureManager.Instance != null)
             {
-                Sprite mySprite = ProfilePictureManager.Instance.GetCurrentSprite();
-                if (mySprite != null) avatarImg.sprite = mySprite;
+                try
+                {
+                    Sprite mySprite = ProfilePictureManager.Instance.GetCurrentSprite();
+                    if (mySprite != null) avatarImg.sprite = mySprite;
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning($"[Leaderboard] Failed to get current sprite: {e.Message}");
+                }
             }
             // Remote Default for OTHERS
             else
@@ -211,7 +260,23 @@ public class LeaderboardDisplay : MonoBehaviour
                 {
                     avatarImg.sprite = avatarIcons[avatarIndex];
                 }
+                else
+                {
+                    Debug.LogWarning($"[Leaderboard] Avatar index {avatarIndex} out of range (total: {avatarIcons?.Length ?? 0})");
+                }
             }
+        }
+    }
+    
+    private void ShowNotification(string title, string message, Color color)
+    {
+        if (notificationPopup != null)
+        {
+            notificationPopup.Show(title, message, color);
+        }
+        else
+        {
+            Debug.Log($"[Notification] {title}: {message}");
         }
     }
 }
