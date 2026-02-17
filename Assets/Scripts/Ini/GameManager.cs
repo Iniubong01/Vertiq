@@ -176,6 +176,11 @@ public class GameManager : MonoBehaviour
 
     private void Respawn()
     {
+        if(player == null)
+        {
+            player = GameObject.FindGameObjectWithTag("Player").GetComponent<Player>();
+        }
+        
         player.transform.position = Vector3.zero;
         player.gameObject.SetActive(true);
 

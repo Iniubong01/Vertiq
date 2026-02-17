@@ -965,11 +965,11 @@ RectTransform:
   - {fileID: 611844441}
   - {fileID: 2140835751}
   - {fileID: 1067528234}
-  m_Father: {fileID: 928547234}
+  m_Father: {fileID: 313976527}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 199.61, y: -186.155}
+  m_AnchoredPosition: {x: 588.82996, y: -186.155}
   m_SizeDelta: {x: 366.69, y: 362.06}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!225 &30333387
@@ -998,8 +998,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 611844440}
   lockIcon: {fileID: 1067528233}
-  price: 550
-  isLocked: 0
+  price: 335
+  isLocked: 1
   isDeployed: 0
 --- !u!114 &30333389
 MonoBehaviour:
@@ -4623,7 +4623,7 @@ GameObject:
   - component: {fileID: 181517118}
   - component: {fileID: 181517117}
   m_Layer: 5
-  m_Name: X Button
+  m_Name: -----------
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4644,9 +4644,9 @@ RectTransform:
   - {fileID: 661108200}
   m_Father: {fileID: 1470995264}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 588.82996, y: -186.155}
   m_SizeDelta: {x: 366.69, y: 362.06}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!225 &181517117
@@ -4675,7 +4675,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 661108199}
   lockIcon: {fileID: 0}
-  price: 650
+  price: 0
   isLocked: 1
   isDeployed: 0
 --- !u!114 &181517119
@@ -7512,8 +7512,8 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1746531552}
   - {fileID: 2094214343}
+  - {fileID: 30333386}
   m_Father: {fileID: 419591755}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
@@ -12639,8 +12639,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 806416645}
   lockIcon: {fileID: 688350298}
-  price: 50
-  isLocked: 0
+  price: 400
+  isLocked: 1
   isDeployed: 0
 --- !u!225 &574973287
 CanvasGroup:
@@ -12770,7 +12770,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 595.95496, y: -286.7975}
+  m_AnchoredPosition: {x: 201.98499, y: -286.7975}
   m_SizeDelta: {x: 366.69, y: 362.06}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!225 &576424528
@@ -12799,8 +12799,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 670980381}
   lockIcon: {fileID: 716423158}
-  price: 400
-  isLocked: 0
+  price: 595
+  isLocked: 1
   isDeployed: 0
 --- !u!114 &576424530
 MonoBehaviour:
@@ -20266,7 +20266,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 30333386}
+  - {fileID: 2005771899}
   - {fileID: 1269684162}
   m_Father: {fileID: 419591755}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -23444,11 +23444,11 @@ RectTransform:
   - {fileID: 1048812200}
   - {fileID: 1809846392}
   - {fileID: 354471421}
-  m_Father: {fileID: 1395135517}
+  m_Father: {fileID: 1356513100}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 201.98499, y: -286.7975}
+  m_AnchoredPosition: {x: 595.95496, y: -286.7975}
   m_SizeDelta: {x: 366.69, y: 362.06}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!225 &1081372357
@@ -23477,8 +23477,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 1048812199}
   lockIcon: {fileID: 354471420}
-  price: 300
-  isLocked: 0
+  price: 850
+  isLocked: 1
   isDeployed: 0
 --- !u!114 &1081372359
 MonoBehaviour:
@@ -25949,6 +25949,7 @@ MonoBehaviour:
     type: 3}
   selectButtonAction: {fileID: 4966372506986260685, guid: bad6093114ff8464598852046bf2648c,
     type: 3}
+  gameSceneName: Game
   startGameButton: {fileID: 1175336979}
   storeButton: {fileID: 1734487276}
 --- !u!1 &1174150267
@@ -28144,6 +28145,135 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1258234635}
   m_CullTransparentMesh: 1
+--- !u!1 &1259427702
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1259427703}
+  - component: {fileID: 1259427704}
+  m_Layer: 0
+  m_Name: Game AS
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1259427703
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1259427702}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -9.897389, y: -0.72384495, z: -0.93339765}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4176008270150816147}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!82 &1259427704
+AudioSource:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1259427702}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: 0}
+  m_audioClip: {fileID: 0}
+  m_Resource: {fileID: 8300000, guid: 5867234c80255a0468ee4957a5883e01, type: 3}
+  m_PlayOnAwake: 0
+  m_Volume: 0.3
+  m_Pitch: 1
+  Loop: 1
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 128
+  DopplerLevel: 1
+  MinDistance: 1
+  MaxDistance: 500
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.5
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1 &1267806907
 GameObject:
   m_ObjectHideFlags: 0
@@ -28383,7 +28513,7 @@ GameObject:
   - component: {fileID: 1269684164}
   - component: {fileID: 1269684163}
   m_Layer: 5
-  m_Name: X Button (1)
+  m_Name: -----------
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -28435,7 +28565,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 465043493}
   lockIcon: {fileID: 0}
-  price: 650
+  price: 0
   isLocked: 1
   isDeployed: 0
 --- !u!114 &1269684165
@@ -30968,7 +31098,7 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2079344758}
-  - {fileID: 1403906792}
+  - {fileID: 1081372356}
   m_Father: {fileID: 941671847}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
@@ -32088,8 +32218,8 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1081372356}
   - {fileID: 576424527}
+  - {fileID: 1403906792}
   m_Father: {fileID: 941671847}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
@@ -32160,7 +32290,7 @@ RectTransform:
   - {fileID: 1102446325}
   - {fileID: 2105005260}
   - {fileID: 586378727}
-  m_Father: {fileID: 1356513100}
+  m_Father: {fileID: 1395135517}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
@@ -32194,7 +32324,7 @@ MonoBehaviour:
   outline: {fileID: 1102446324}
   lockIcon: {fileID: 586378726}
   price: 650
-  isLocked: 0
+  isLocked: 1
   isDeployed: 0
 --- !u!114 &1403906795
 MonoBehaviour:
@@ -32370,11 +32500,11 @@ RectTransform:
   - {fileID: 710725574}
   - {fileID: 1292374137}
   - {fileID: 1347048604}
-  m_Father: {fileID: 1470995264}
+  m_Father: {fileID: 1963717199}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 199.61, y: -573.6751}
   m_SizeDelta: {x: 366.69, y: 362.06}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!225 &1430381442
@@ -32403,7 +32533,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 710725573}
   lockIcon: {fileID: 1347048603}
-  price: 1
+  price: 287
   isLocked: 1
   isDeployed: 0
 --- !u!114 &1430381444
@@ -33581,13 +33711,13 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1430381441}
+  - {fileID: 1746531552}
   - {fileID: 181517116}
   m_Father: {fileID: 1859474551}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 390.445, y: -674.1051}
   m_SizeDelta: {x: 788.44, y: 372.31}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1470995265
@@ -38919,7 +39049,7 @@ RectTransform:
   - {fileID: 231300285}
   - {fileID: 756335984}
   - {fileID: 1174899289}
-  m_Father: {fileID: 313976527}
+  m_Father: {fileID: 1470995264}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
@@ -38967,8 +39097,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 231300284}
   lockIcon: {fileID: 1174899288}
-  price: 220
-  isLocked: 0
+  price: 291
+  isLocked: 1
   isDeployed: 0
 --- !u!114 &1746531556
 MonoBehaviour:
@@ -41144,7 +41274,7 @@ GameObject:
   - component: {fileID: 1823058681}
   - component: {fileID: 1823058682}
   m_Layer: 0
-  m_Name: AudioSource
+  m_Name: Splash AS
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -41176,7 +41306,7 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
-  m_Resource: {fileID: 8300000, guid: 5867234c80255a0468ee4957a5883e01, type: 3}
+  m_Resource: {fileID: 8300000, guid: 87efdef17cb52384e92626394ec0b398, type: 3}
   m_PlayOnAwake: 1
   m_Volume: 0.3
   m_Pitch: 1
@@ -43828,12 +43958,12 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 248562102}
-  - {fileID: 2005771899}
+  - {fileID: 1430381441}
   m_Father: {fileID: 1859474551}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 390.445, y: -286.58502}
   m_SizeDelta: {x: 788.44, y: 372.31}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1963717200
@@ -44735,11 +44865,11 @@ RectTransform:
   - {fileID: 1279436975}
   - {fileID: 382014486}
   - {fileID: 1521212003}
-  m_Father: {fileID: 1963717199}
+  m_Father: {fileID: 928547234}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 588.82996, y: -186.155}
+  m_AnchoredPosition: {x: 199.61, y: -186.155}
   m_SizeDelta: {x: 366.69, y: 362.06}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!225 &2005771900
@@ -44768,7 +44898,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 1279436974}
   lockIcon: {fileID: 1521212002}
-  price: 1
+  price: 350
   isLocked: 1
   isDeployed: 0
 --- !u!114 &2005771902
@@ -46359,8 +46489,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 1194752166}
   lockIcon: {fileID: 1787306281}
-  price: 550
-  isLocked: 0
+  price: 680
+  isLocked: 1
   isDeployed: 0
 --- !u!114 &2079344761
 MonoBehaviour:
@@ -46638,7 +46768,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 588.82996, y: -186.155}
+  m_AnchoredPosition: {x: 199.61, y: -186.155}
   m_SizeDelta: {x: 366.69, y: 362.06}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!225 &2094214344
@@ -46667,8 +46797,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 267772176}
   lockIcon: {fileID: 479514451}
-  price: 350
-  isLocked: 0
+  price: 300
+  isLocked: 1
   isDeployed: 0
 --- !u!114 &2094214346
 MonoBehaviour:
@@ -47198,8 +47328,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 888389959}
   lockIcon: {fileID: 1706034001}
-  price: 120
-  isLocked: 0
+  price: 400
+  isLocked: 1
   isDeployed: 0
 --- !u!225 &2109921493
 CanvasGroup:
@@ -47782,8 +47912,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 1826288760}
   lockIcon: {fileID: 809168930}
-  price: 200
-  isLocked: 0
+  price: 520
+  isLocked: 1
   isDeployed: 0
 --- !u!225 &2147076199
 CanvasGroup:
@@ -47843,6 +47973,8 @@ MonoBehaviour:
   enemyDeathSound: {fileID: 8300000, guid: 2ef9a93370f76fd48b77e9fecbc27b80, type: 3}
   buttonSound: {fileID: 8300000, guid: 2aae0c8c71813f248970c41b584f605b, type: 3}
   hoverSound: {fileID: 0}
+  splashAudioSource: {fileID: 1823058682}
+  gameAudioSource: {fileID: 1259427704}
 --- !u!224 &738946646564682919
 RectTransform:
   m_ObjectHideFlags: 0
@@ -48547,6 +48679,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1823058681}
+  - {fileID: 1259427703}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &4468144047514292106

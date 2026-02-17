@@ -7,6 +7,9 @@ public class SoundManager : MonoBehaviour
     [SerializeField] AudioClip buttonSound, hoverSound;
     public static SoundManager Instance;
 
+    [SerializeField] private AudioSource splashAudioSource;
+    [SerializeField] private AudioSource gameAudioSource;
+
     /// Awake is called when the script instance is being loaded.
     private void Awake()
     {
@@ -47,5 +50,27 @@ public class SoundManager : MonoBehaviour
     public void PlayHoverSound()
     {
         audioSource.PlayOneShot(hoverSound);
+    }
+
+    public void EnableSplashAS()
+    {
+        if(gameAudioSource.isPlaying)
+        {     
+            gameAudioSource.Stop();
+            gameAudioSource.gameObject.SetActive(false);
+            splashAudioSource.gameObject.SetActive(true);
+        }
+        splashAudioSource.Play();
+    }
+
+    public void EnableInGameAS()
+    {
+        if(splashAudioSource.isPlaying)
+        {     
+            splashAudioSource.Stop();
+            splashAudioSource.gameObject.SetActive(false);
+            gameAudioSource.gameObject.SetActive(true);
+        }
+        gameAudioSource.Play();
     }
 }

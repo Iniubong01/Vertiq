@@ -81,6 +81,9 @@ public class UIManager : MonoBehaviour
         UpdateMultipleBulletsVisuals();
         UpdateFreezeTimeVisuals();
         UpdateFullLivesVisuals();
+
+        // Play a different audio in Splash scene
+        SoundManager.Instance.EnableSplashAS();
     }
 
     private void ResetAllUI()

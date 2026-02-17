@@ -83,6 +83,12 @@ public class SkinLoader : MonoBehaviour
         {
             environmentSkins[envSkinIndex].SetActive(true);
         }
+    }
+
+    private void Start()
+    {
+        // Play a different audio in Game scene
+        SoundManager.Instance.EnableInGameAS();
     }  
 
     void ResetAllPlayers()
