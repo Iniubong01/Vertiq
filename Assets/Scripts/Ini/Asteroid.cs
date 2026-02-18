@@ -1,4 +1,5 @@
 ﻿using DG.Tweening;
+using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(SpriteRenderer))]
@@ -11,8 +12,7 @@ public class Asteroid : MonoBehaviour
     private Collider2D col;
 
     [Header("Setup")]
-    // DRAG YOUR ASTEROID PREFAB HERE! This is crucial.
-    [SerializeField] private Asteroid asteroidPrefab; 
+    [SerializeField] private Asteroid asteroidPrefab;
 
     [SerializeField]
     private Sprite[] sprites;
@@ -24,7 +24,14 @@ public class Asteroid : MonoBehaviour
     public float movementSpeed = 50f;
     public float maxLifetime = 30f;
 
-    private bool isInitialized = false;
+    // Pool tracking — set by AsteroidPool or CreateSplit before activation
+    [HideInInspector] public Asteroid prefabReference;
+
+    // Cached reference — avoids per-frame singleton lookup in Update
+    private PowerUpManager powerUpManager;
+
+    private Coroutine lifetimeCoroutine;
+    private bool isDying = false;
 
     private void Awake()
     {
@@ -33,13 +40,42 @@ public class Asteroid : MonoBehaviour
         spriteRenderer = GetComponent<SpriteRenderer>();
     }
 
-    private void Start()
+    // -------------------------------------------------------
+    // POOL LIFECYCLE
+    // -------------------------------------------------------
+
+    private void OnEnable()
     {
-        if (!isInitialized)
+        // Reset visual & physics state so pooled asteroids are clean
+        isDying = false;
+        col.enabled = true;
+
+        // Kill any leftover tweens from a previous use
+        spriteRenderer.DOKill();
+        Color c = spriteRenderer.color;
+        c.a = 1f;
+        spriteRenderer.color = c;
+
+        // Cache PowerUpManager once per activation (avoids per-frame lookup)
+        powerUpManager = PowerUpManager.Instance;
+    }
+
+    private void OnDisable()
+    {
+        // Kill tweens so they don't run on a pooled (inactive) object
+        spriteRenderer.DOKill();
+
+        // Stop lifetime coroutine
+        if (lifetimeCoroutine != null)
         {
-            Initialize();
+            StopCoroutine(lifetimeCoroutine);
+            lifetimeCoroutine = null;
         }
     }
+
+    // -------------------------------------------------------
+    // INITIALIZATION (called by AsteroidSpawner or CreateSplit)
+    // -------------------------------------------------------
 
     public void Initialize(float asteroidSize)
     {
@@ -49,8 +85,6 @@ public class Asteroid : MonoBehaviour
 
     private void Initialize()
     {
-        isInitialized = true;
-
         // 1. Random Rotation
         transform.eulerAngles = new Vector3(0f, 0f, Random.value * 360f);
 
@@ -58,8 +92,9 @@ public class Asteroid : MonoBehaviour
         transform.localScale = Vector3.one * size;
         rb.mass = size;
 
-        // 3. Destroy after lifetime
-        Destroy(gameObject, maxLifetime);
+        // 3. Start lifetime timer (replaces Destroy(gameObject, maxLifetime))
+        if (lifetimeCoroutine != null) StopCoroutine(lifetimeCoroutine);
+        lifetimeCoroutine = StartCoroutine(LifetimeRoutine());
     }
 
     public void SetTrajectory(Vector2 direction)
@@ -67,64 +102,92 @@ public class Asteroid : MonoBehaviour
         rb.AddForce(direction * movementSpeed);
     }
 
+    // -------------------------------------------------------
+    // LIFETIME
+    // -------------------------------------------------------
+
+    private IEnumerator LifetimeRoutine()
+    {
+        yield return new WaitForSeconds(maxLifetime);
+        ReturnToPool();
+    }
+
+    // -------------------------------------------------------
+    // COLLISION
+    // -------------------------------------------------------
+
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (collision.gameObject.CompareTag("Bullet"))
+        if (isDying) return; // Already fading — ignore further hits
+        if (!collision.gameObject.CompareTag("Bullet")) return;
+
+        // Split into two smaller asteroids
+        if ((size * 0.5f) >= minSize)
         {
-            // --- SPLIT LOGIC ---
-            if ((size * 0.5f) >= minSize)
-            {
-                CreateSplit();
-                CreateSplit();
-            }
-
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.OnAsteroidDestroyed(this);
-            }
-
-            // --- DESTRUCTION LOGIC ---
-            
-            // 1. Disable OUR collider so we don't get hit again while fading
-            col.enabled = false;
-
-            // 2. Visual Fade
-            spriteRenderer.DOFade(0, 0.15f);
-
-            // 3. Destroy object
-            Destroy(gameObject, 0.15f); 
+            CreateSplit();
+            CreateSplit();
         }
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.OnAsteroidDestroyed(this);
+
+        ReturnToPool();
     }
+
+    // -------------------------------------------------------
+    // DESTRUCTION (pool-compatible)
+    // -------------------------------------------------------
+
+    private void ReturnToPool()
+    {
+        if (isDying) return;
+        isDying = true;
+
+        // Disable collider immediately so no further collisions fire during fade
+        col.enabled = false;
+
+        // Fade out, then return to pool
+        spriteRenderer.DOFade(0f, 0.15f).OnComplete(() =>
+        {
+            AsteroidPool.Instance.Release(this);
+        });
+    }
+
+    // -------------------------------------------------------
+    // SPLIT
+    // -------------------------------------------------------
 
     private Asteroid CreateSplit()
     {
-        // Safety check to prevent crashing if you forgot the prefab
         if (asteroidPrefab == null)
         {
-            Debug.LogError("Asteroid Prefab is missing! Drag it into the Inspector slot.");
+            Debug.LogError("Asteroid: asteroidPrefab is missing! Drag it into the Inspector slot.");
             return null;
         }
 
-        Vector2 position = transform.position;
-        position += Random.insideUnitCircle * 0.5f;
+        Vector2 position = (Vector2)transform.position + Random.insideUnitCircle * 0.5f;
 
-        // FIX: Instantiate from PREFAB, not 'this'. 
-        // This guarantees the new asteroid has a fresh, ENABLED collider.
-        Asteroid half = Instantiate(asteroidPrefab, position, transform.rotation);
-        
-        // Initialize with half size
+        // Get from pool instead of Instantiate
+        Asteroid half = AsteroidPool.Instance.Get(asteroidPrefab);
+        half.prefabReference = asteroidPrefab;
+        half.transform.SetParent(transform.parent);
+        half.transform.position = position;
+        half.transform.rotation = transform.rotation;
+
         half.Initialize(size * 0.5f);
-
-        // Set Trajectory
         half.SetTrajectory(Random.insideUnitCircle.normalized);
 
         return half;
     }
 
+    // -------------------------------------------------------
+    // UPDATE — freeze powerup
+    // -------------------------------------------------------
+
     private void Update()
     {
-        // Freeze time logic
-        if(PowerUpManager.Instance != null && PowerUpManager.Instance.IsFreezeTimeActive)
+        // Use cached reference — no per-frame singleton lookup
+        if (powerUpManager != null && powerUpManager.IsFreezeTimeActive)
         {
             rb.linearVelocity = Vector2.zero;
             rb.angularVelocity = 0f;

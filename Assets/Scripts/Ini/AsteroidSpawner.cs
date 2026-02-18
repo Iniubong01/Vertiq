@@ -73,23 +73,24 @@ public class AsteroidSpawner : MonoBehaviour
             // 3. Add randomness to the angle
             float variance = Random.Range(-trajectoryVariance, trajectoryVariance);
             Quaternion rotation = Quaternion.AngleAxis(variance, Vector3.forward);
-            
-            // 4. Generate random size FIRST
+
+            // 4. Pick a random prefab variant and size
             int index = Random.Range(0, asteroidPrefab.Length);
             Asteroid prefab = asteroidPrefab[index];
             float randomSize = Random.Range(prefab.minSize, prefab.maxSize);
-            
-            // 5. Create Asteroid with proper instantiation
-            // 5b. Added a parent where where they are spawned into; hierarchy cleanup
-            Asteroid asteroid = Instantiate(prefab, spawnPoint, rotation, asteroidParent);
-            
-            // 6. Initialize with size BEFORE Start() runs (this happens immediately after Instantiate)
+
+            // 5. Get from pool (no Instantiate/GC spike)
+            Asteroid asteroid = AsteroidPool.Instance.Get(prefab);
+            asteroid.prefabReference = prefab;
+            asteroid.transform.SetParent(asteroidParent);
+            asteroid.transform.position = spawnPoint;
+            asteroid.transform.rotation = rotation;
+
+            // 6. Initialize with size
             asteroid.Initialize(randomSize);
-            
+
             // 7. Set trajectory
             asteroid.SetTrajectory(rotation * directionToCenter);
-            
-            Debug.Log($"Spawned asteroid: Size={randomSize}, Position={spawnPoint}");
         }
     }
 

@@ -6,6 +6,11 @@ using System.Collections.Generic;
 
 public class UISelectionKeeper : MonoBehaviour
 {
+    // Static reference to whichever keeper is currently active.
+    // NotificationPopup (and any other script) can call UISelectionKeeper.Current?.TakeoverFocus()
+    // to restore gamepad focus after a popup closes — no Inspector wiring needed.
+    public static UISelectionKeeper Current { get; private set; }
+
     private GameObject lastSelected;
     [SerializeField] private GameObject defaultSelection;
     [SerializeField] private Button[] allButtons; 
@@ -24,13 +29,7 @@ public class UISelectionKeeper : MonoBehaviour
                 if (btn != null) excludedButtonSet.Add(btn);
         }
 
-        // 2. Initial Selection
-        if (defaultSelection != null)
-        {
-            StartCoroutine(ForceSelection(defaultSelection));
-        }
-        
-        // 3. Auto-Fill Buttons if empty
+        // 2. Auto-Fill Buttons if empty
         if (allButtons == null || allButtons.Length == 0)
         {
             Button[] foundButtons = GetComponentsInChildren<Button>(true);
@@ -42,6 +41,56 @@ public class UISelectionKeeper : MonoBehaviour
             allButtons = filteredButtons.ToArray();
         }
     }
+
+    // --- AUTO FOCUS ON PANEL ACTIVATION ---
+    // Fires every time this GameObject (or a parent) is activated via SetActive(true).
+    // This is the KEY FIX: when WalletConnector switches to the login panel,
+    // OnEnable fires here and automatically restores gamepad focus.
+    void OnEnable()
+    {
+        // Register as the currently active keeper so other scripts (e.g. NotificationPopup)
+        // can restore focus here without needing a direct reference.
+        Current = this;
+
+        // excludedButtonSet may not be ready yet on the very first enable (before Start).
+        // Guard against that by only running after Start has completed.
+        if (excludedButtonSet == null) return;
+        StartCoroutine(TakeoverFocusDelayed());
+    }
+
+    void OnDisable()
+    {
+        // Only clear if we are the current one (don't clear if another panel took over)
+        if (Current == this) Current = null;
+    }
+
+    private IEnumerator TakeoverFocusDelayed()
+    {
+        yield return null; // Wait one frame so Unity finishes activating all children
+        TakeoverFocus();
+    }
+
+    /// <summary>
+    /// Grabs gamepad/keyboard focus for this panel. Call this whenever this panel
+    /// becomes active and you need focus to land here automatically.
+    /// </summary>
+    public void TakeoverFocus()
+    {
+        // Prefer the last known valid button, then first active, then default
+        GameObject target = null;
+        if (IsValidButton(lastSelected))        target = lastSelected;
+        else if (FindFirstActiveButton() != null) target = FindFirstActiveButton();
+        else if (IsValidButton(defaultSelection)) target = defaultSelection;
+
+        if (target != null)
+        {
+            StartCoroutine(ForceSelection(target));
+            lastSelected = target;
+        }
+    }
+
+    // Initial selection is now handled by OnEnable (fires after Start sets up the button list)
+    // so we no longer need a separate ForceSelection call in Start.
 
     void Update()
     {
