@@ -114,36 +114,48 @@ public class UsernameSetupPanel : MonoBehaviour
 
     private async void OnSaveClicked()
     {
-        Debug.Log("[USERNAME PANEL] Save button clicked");
-        
-        string newName = usernameInput.text.Trim();
-
-        if (string.IsNullOrEmpty(newName) || newName.Length < 3)
+        try
         {
-            errorText.text = "Username must be at least 3 characters.";
-            Debug.LogWarning($"[USERNAME PANEL] Invalid username: '{newName}'");
-            return;
+            Debug.Log("[USERNAME PANEL] Save button clicked");
+
+            string newName = usernameInput != null ? usernameInput.text.Trim() : "";
+
+            if (string.IsNullOrEmpty(newName) || newName.Length < 3)
+            {
+                if (errorText != null) errorText.text = "Username must be at least 3 characters.";
+                Debug.LogWarning($"[USERNAME PANEL] Invalid username: '{newName}'");
+                return;
+            }
+
+            if (saveButton != null) saveButton.interactable = false;
+
+            bool success = await UpdateUsername(newName);
+
+            // Guard: object may have been destroyed while awaiting
+            if (this == null || !gameObject.activeInHierarchy) return;
+
+            if (success)
+            {
+                PlayerPrefs.SetString("CachedUsername", newName);
+                PlayerPrefs.SetString("PlayerUsername", newName);
+                PlayerPrefs.Save();
+
+                Debug.Log($"[USERNAME PANEL] Username saved successfully: {newName}");
+                Hide();
+            }
+            else
+            {
+                if (errorText != null) errorText.text = "Failed to update username. Try again.";
+                if (saveButton != null) saveButton.interactable = true;
+                Debug.LogError("[USERNAME PANEL] Failed to save username");
+            }
         }
-
-        saveButton.interactable = false; // Prevent double clicks
-
-        bool success = await UpdateUsername(newName);
-
-        if (success)
+        catch (System.Exception ex)
         {
-            // Save locally as a backup
-            PlayerPrefs.SetString("CachedUsername", newName);
-            PlayerPrefs.SetString("PlayerUsername", newName);
-            PlayerPrefs.Save();
-            
-            Debug.Log($"[USERNAME PANEL] Username saved successfully: {newName}");
-            Hide();
-        }
-        else
-        {
-            errorText.text = "Failed to update username. Try again.";
-            saveButton.interactable = true;
-            Debug.LogError("[USERNAME PANEL] Failed to save username");
+            // Catch-all: prevents async void from crashing the app
+            Debug.LogError($"[USERNAME PANEL] Unexpected error in OnSaveClicked: {ex.Message}");
+            if (errorText != null) errorText.text = "An error occurred. Please try again.";
+            if (saveButton != null) saveButton.interactable = true;
         }
     }
 

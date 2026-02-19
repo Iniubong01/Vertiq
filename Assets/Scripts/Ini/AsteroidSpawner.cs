@@ -28,11 +28,23 @@ public class AsteroidSpawner : MonoBehaviour
     //? Todo: Fix this using player.cs
     [SerializeField] private Transform asteroidParent;
 
+    [Header("Pool Settings")]
+    [Tooltip("How many asteroids to pre-instantiate per prefab at startup. Prevents split stutter.")]
+    [SerializeField] private int prewarmCount = 20;
+
     private void Start()
     {
         audioSource = GetComponent<AudioSource>();
         mainCam = Camera.main;
         currentSpawnInterval = startSpawnInterval;
+
+        // Pre-warm the pool for every prefab variant so splits never trigger
+        // a mid-game Instantiate spike. Spread across frames — no startup hitch.
+        if (asteroidPrefab != null)
+        {
+            foreach (Asteroid prefab in asteroidPrefab)
+                AsteroidPool.Instance.Prewarm(prefab, prewarmCount);
+        }
     }
 
     private void Update()

@@ -21,6 +21,12 @@ public class LeaderboardDisplay : MonoBehaviour
     public GameObject standardPrefab;       // For normal players (Rank 4+)
     public GameObject standardMePrefab;     // For YOU (Rank 4+)
 
+    [Header("My Position Banner")]
+    [Tooltip("Container shown below the leaderboard when you are outside the top 5.")]
+    public Transform myPositionContainer;
+    [Tooltip("Prefab used for the 'my position' banner. Falls back to standardMePrefab if not set.")]
+    public GameObject myPositionPrefab;
+
     [Header("Assets")]
     public Sprite[] avatarIcons;
     
@@ -65,6 +71,10 @@ public class LeaderboardDisplay : MonoBehaviour
 
         foreach (Transform child in contentContainer) Destroy(child.gameObject);
 
+        // Clear the "my position" banner container too
+        if (myPositionContainer != null)
+            foreach (Transform child in myPositionContainer) Destroy(child.gameObject);
+
         try
         {
             Debug.Log($"[Leaderboard] Fetching leaderboard: {leaderboardId}");
@@ -93,6 +103,12 @@ public class LeaderboardDisplay : MonoBehaviour
             string myPlayerId = AuthenticationService.Instance.PlayerId;
             Debug.Log($"[Leaderboard] My Player ID: {myPlayerId}");
 
+            // Track my entry for the position banner
+            int myRank = -1;
+            string myName = "";
+            double myScore = 0;
+            int myAvatarIndex = 0;
+
             int processedCount = 0;
             foreach (var entry in scoresResponse.Results)
             {
@@ -115,7 +131,38 @@ public class LeaderboardDisplay : MonoBehaviour
                 Debug.Log($"[Leaderboard] IsMe Check: entry.PlayerId='{entry.PlayerId}' vs myPlayerId='{myPlayerId}' -> IsMe={isMe}");
                 
                 CreateLeaderboardRow(entry.Rank + 1, entry.PlayerName, entry.Score, avatarIndex, isMe);
+
+                // Cache my data for the position banner
+                if (isMe)
+                {
+                    myRank        = entry.Rank + 1;
+                    myName        = entry.PlayerName;
+                    myScore       = entry.Score;
+                    myAvatarIndex = avatarIndex;
+                }
+
                 processedCount++;
+            }
+
+            // --- MY POSITION BANNER ---
+            // Show only when I'm outside the top 5 and the container is assigned
+            if (myPositionContainer != null)
+            {
+                if (myRank > 5)
+                {
+                    GameObject bannerPrefab = myPositionPrefab != null ? myPositionPrefab : standardMePrefab;
+                    if (bannerPrefab != null)
+                    {
+                        CreateLeaderboardRow(myRank, myName, myScore, myAvatarIndex, isMe: true, targetContainer: myPositionContainer);
+                        myPositionContainer.gameObject.SetActive(true);
+                        Debug.Log($"[Leaderboard] My position banner shown at rank {myRank}");
+                    }
+                }
+                else
+                {
+                    // I'm in the top 5 — hide the banner
+                    myPositionContainer.gameObject.SetActive(false);
+                }
             }
             
             Debug.Log($"[Leaderboard] ✅ Successfully processed {processedCount} leaderboard entries");
@@ -140,9 +187,13 @@ public class LeaderboardDisplay : MonoBehaviour
         }
     }
 
-    private void CreateLeaderboardRow(int rank, string playerName, double score, int avatarIndex, bool isMe)
+    // targetContainer: if null, uses the default contentContainer.
+    // Used by the "my position" banner to write into a separate container.
+    private void CreateLeaderboardRow(int rank, string playerName, double score, int avatarIndex, bool isMe, Transform targetContainer = null)
     {
         Debug.Log($"[Leaderboard] CreateLeaderboardRow called - Rank: {rank}, Name: {playerName}, Score: {score}, IsMe: {isMe}");
+
+        Transform container = targetContainer != null ? targetContainer : contentContainer;
         
         // 1. CHOOSE PREFAB
         GameObject prefabToUse = standardPrefab; 
@@ -184,13 +235,13 @@ public class LeaderboardDisplay : MonoBehaviour
             return;
         }
         
-        if (contentContainer == null)
+        if (container == null)
         {
             Debug.LogError("[Leaderboard] Content container is null!");
             return;
         }
 
-        GameObject newRow = Instantiate(prefabToUse, contentContainer);
+        GameObject newRow = Instantiate(prefabToUse, container);
         
         if (newRow == null)
         {

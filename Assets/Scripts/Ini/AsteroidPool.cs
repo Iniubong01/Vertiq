@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Pool;
@@ -34,8 +35,51 @@ public class AsteroidPool : MonoBehaviour
     }
 
     /// <summary>
-    /// Gets an asteroid from the pool for the given prefab type.
-    /// Creates a new pool for this prefab if one doesn't exist yet.
+    /// Pre-instantiates 'count' asteroids for the given prefab and immediately
+    /// returns them to the pool. Spread across frames to avoid a startup hitch.
+    /// Call this from AsteroidSpawner.Start() for each prefab variant.
+    /// </summary>
+    public void Prewarm(Asteroid prefab, int count)
+    {
+        if (prefab == null || count <= 0) return;
+        StartCoroutine(PrewarmRoutine(prefab, count));
+    }
+
+    private IEnumerator PrewarmRoutine(Asteroid prefab, int count)
+    {
+        // Ensure the pool entry exists
+        EnsurePool(prefab);
+
+        for (int i = 0; i < count; i++)
+        {
+            // Instantiate directly — never call Get() here, which would SetActive(true)
+            // and make the asteroid visible for a frame before Release() hides it.
+            Asteroid a = Instantiate(prefab);
+            a.prefabReference = prefab;
+            a.gameObject.SetActive(false); // immediately invisible
+            pools[prefab].Release(a);      // hand it to the pool as a ready object
+            yield return null;             // one per frame — no startup spike
+        }
+    }
+
+    private void EnsurePool(Asteroid prefab)
+    {
+        if (pools.ContainsKey(prefab)) return;
+        pools[prefab] = new ObjectPool<Asteroid>(
+            createFunc:      () => Instantiate(prefab),
+            actionOnGet:     a  => { if (a != null) a.gameObject.SetActive(true); },
+            actionOnRelease: a  => { if (a != null) a.gameObject.SetActive(false); },
+            actionOnDestroy: a  => { if (a != null) Destroy(a.gameObject); },
+            collectionCheck: false,
+            defaultCapacity: defaultCapacity,
+            maxSize:         maxSize
+        );
+    }
+
+    /// <summary>
+    /// Gets a live asteroid from the pool for the given prefab type.
+    /// If the pool returns a stale (externally-destroyed) slot, it discards it
+    /// and fetches again until a valid instance is obtained.
     /// </summary>
     public Asteroid Get(Asteroid prefab)
     {
@@ -45,20 +89,18 @@ public class AsteroidPool : MonoBehaviour
             return null;
         }
 
-        if (!pools.ContainsKey(prefab))
-        {
-            pools[prefab] = new ObjectPool<Asteroid>(
-                createFunc:      () => Instantiate(prefab),
-                actionOnGet:     a  => a.gameObject.SetActive(true),
-                actionOnRelease: a  => a.gameObject.SetActive(false),
-                actionOnDestroy: a  => Destroy(a.gameObject),
-                collectionCheck: false,
-                defaultCapacity: defaultCapacity,
-                maxSize:         maxSize
-            );
-        }
+        EnsurePool(prefab);
 
-        return pools[prefab].Get();
+        // Loop until we get a live object. Stale slots (externally Destroy()ed)
+        // are discarded; the next Get() call will trigger createFunc for a fresh one.
+        Asteroid asteroid;
+        do
+        {
+            asteroid = pools[prefab].Get();
+        }
+        while (asteroid == null); // Unity's == null returns true for destroyed objects
+
+        return asteroid;
     }
 
     /// <summary>
