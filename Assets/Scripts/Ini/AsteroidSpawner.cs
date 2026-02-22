@@ -32,11 +32,25 @@ public class AsteroidSpawner : MonoBehaviour
     [Tooltip("How many asteroids to pre-instantiate per prefab at startup. Prevents split stutter.")]
     [SerializeField] private int prewarmCount = 20;
 
+    [Header("Performance")]
+    [Tooltip("Hard cap on simultaneous live asteroids. Waves are skipped when this is reached.")]
+    [SerializeField] private int maxActiveAsteroids = 40;
+
+    // Cached camera bounds — computed once in Start(), never per-spawn
+    private float _camHalfH;
+    private float _camHalfW;
+    private Vector3 _camPos;
+
     private void Start()
     {
         audioSource = GetComponent<AudioSource>();
         mainCam = Camera.main;
         currentSpawnInterval = startSpawnInterval;
+
+        // Cache camera bounds once — orthographic size & aspect don't change during gameplay
+        _camHalfH = mainCam.orthographicSize;
+        _camHalfW = _camHalfH * mainCam.aspect;
+        _camPos   = mainCam.transform.position;
 
         // Pre-warm the pool for every prefab variant so splits never trigger
         // a mid-game Instantiate spike. Spread across frames — no startup hitch.
@@ -71,10 +85,17 @@ public class AsteroidSpawner : MonoBehaviour
 
     private void Spawn(int amount)
     {
+        // PERFORMANCE: Skip entire wave if we're at the active asteroid cap
+        if (Asteroid.ActiveCount >= maxActiveAsteroids)
+            return;
+
+        // Clamp the wave so we never exceed the cap mid-wave
+        int canSpawn = Mathf.Min(amount, maxActiveAsteroids - Asteroid.ActiveCount);
+
         if (spawnSound != null && audioSource != null)
             audioSource.PlayOneShot(spawnSound);
 
-        for (int i = 0; i < amount; i++)
+        for (int i = 0; i < canSpawn; i++)
         {
             // 1. Get a spawn point outside the camera view
             Vector3 spawnPoint = GetRandomPointOutsideCamera();
@@ -106,39 +127,24 @@ public class AsteroidSpawner : MonoBehaviour
         }
     }
 
-    // --- CALCULATE CAMERA BOUNDS ---
+    /// <summary>
+    /// Calculates a random off-screen spawn point using cached camera bounds.
+    /// </summary>
     private Vector3 GetRandomPointOutsideCamera()
     {
-        float height = 2f * mainCam.orthographicSize;
-        float width = height * mainCam.aspect;
-        
-        // Calculate the edges (Center 0,0 assumed)
-        float top = mainCam.transform.position.y + (height / 2f);
-        float bottom = mainCam.transform.position.y - (height / 2f);
-        float right = mainCam.transform.position.x + (width / 2f);
-        float left = mainCam.transform.position.x - (width / 2f);
+        float top    = _camPos.y + _camHalfH;
+        float bottom = _camPos.y - _camHalfH;
+        float right  = _camPos.x + _camHalfW;
+        float left   = _camPos.x - _camHalfW;
 
-        // Pick a random side: 0=Top, 1=Bottom, 2=Right, 3=Left
         int side = Random.Range(0, 4);
-        Vector3 point = Vector3.zero;
-
         switch (side)
         {
-            case 0: // Top
-                point = new Vector3(Random.Range(left, right), top + spawnBuffer, 0);
-                break;
-            case 1: // Bottom
-                point = new Vector3(Random.Range(left, right), bottom - spawnBuffer, 0);
-                break;
-            case 2: // Right
-                point = new Vector3(right + spawnBuffer, Random.Range(bottom, top), 0);
-                break;
-            case 3: // Left
-                point = new Vector3(left - spawnBuffer, Random.Range(bottom, top), 0);
-                break;
+            case 0: return new Vector3(Random.Range(left, right), top    + spawnBuffer, 0);
+            case 1: return new Vector3(Random.Range(left, right), bottom - spawnBuffer, 0);
+            case 2: return new Vector3(right + spawnBuffer, Random.Range(bottom, top),  0);
+            default:return new Vector3(left  - spawnBuffer, Random.Range(bottom, top),  0);
         }
-
-        return point;
     }
     
     // Debug: Draw the spawn zone in Scene View

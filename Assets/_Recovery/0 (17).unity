@@ -929,7 +929,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c4761f0552de36940962db244cea1b18, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UsernameUI
-  debugPanel: {fileID: 0}
   usernameInput: {fileID: 1020782563}
   saveButton: {fileID: 1069194289}
   statusText: {fileID: 1450972873}
@@ -1003,7 +1002,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 611844440}
   lockIcon: {fileID: 1067528233}
-  price: 385
+  price: 1
   isLocked: 1
   isDeployed: 0
 --- !u!114 &30333389
@@ -7447,7 +7446,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.24062966}
   m_AnchorMax: {x: 1, y: 0.24062966}
-  m_AnchoredPosition: {x: 10.070068, y: -29.08014}
+  m_AnchoredPosition: {x: 10.070068, y: -29.080147}
   m_SizeDelta: {x: -263.36, y: 235.4}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &299557112
@@ -17531,7 +17530,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 806416645}
   lockIcon: {fileID: 688350298}
-  price: 500
+  price: 1
   isLocked: 1
   isDeployed: 0
 --- !u!225 &574973287
@@ -17691,7 +17690,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 670980381}
   lockIcon: {fileID: 716423158}
-  price: 695
+  price: 1
   isLocked: 1
   isDeployed: 0
 --- !u!114 &576424530
@@ -33023,7 +33022,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1069194287}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1679651427}
+        m_TargetAssemblyTypeName: UIManager, Assembly-CSharp
+        m_MethodName: QuitGame
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!1 &1071085960
 GameObject:
   m_ObjectHideFlags: 0
@@ -40746,7 +40757,6 @@ GameObject:
   - component: {fileID: 1345695181}
   - component: {fileID: 1345695180}
   - component: {fileID: 1345695182}
-  - component: {fileID: 1345695183}
   m_Layer: 5
   m_Name: Text (TMP)
   m_TagString: Untagged
@@ -40885,62 +40895,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1e6e15b9ac98369469787c663ef16edb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UsernameDisplayBridge
---- !u!114 &1345695183
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1345695178}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Button
-  m_Navigation:
-    m_Mode: 3
-    m_WrapAround: 0
-    m_SelectOnUp: {fileID: 0}
-    m_SelectOnDown: {fileID: 0}
-    m_SelectOnLeft: {fileID: 0}
-    m_SelectOnRight: {fileID: 0}
-  m_Transition: 1
-  m_Colors:
-    m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
-    m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
-    m_PressedColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 1}
-    m_SelectedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
-    m_DisabledColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 0.5019608}
-    m_ColorMultiplier: 1
-    m_FadeDuration: 0.1
-  m_SpriteState:
-    m_HighlightedSprite: {fileID: 0}
-    m_PressedSprite: {fileID: 0}
-    m_SelectedSprite: {fileID: 0}
-    m_DisabledSprite: {fileID: 0}
-  m_AnimationTriggers:
-    m_NormalTrigger: Normal
-    m_HighlightedTrigger: Highlighted
-    m_PressedTrigger: Pressed
-    m_SelectedTrigger: Selected
-    m_DisabledTrigger: Disabled
-  m_Interactable: 1
-  m_TargetGraphic: {fileID: 1345695180}
-  m_OnClick:
-    m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 703464285}
-        m_TargetAssemblyTypeName: WalletConnector, Assembly-CSharp
-        m_MethodName: ShowUsernamePanel
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
 --- !u!1 &1347048603
 GameObject:
   m_ObjectHideFlags: 0
@@ -42690,7 +42644,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 710725573}
   lockIcon: {fileID: 1347048603}
-  price: 510
+  price: 1
   isLocked: 1
   isDeployed: 0
 --- !u!114 &1430381444
@@ -52398,8 +52352,8 @@ MonoBehaviour:
   playTokenMintAddress: PLAYs3GSSadH2q2JLS7djp7yzeT75NK78XgrE5YLrfq
   playTokenPrice: 1
   coinsRewardAmount: 125
-  priceShield: 305
-  priceBullets: 311
+  priceShield: 1
+  priceBullets: 1
   priceFullLives: 275
   priceFreezeTime: 320
   pricePack10: 0.0001
@@ -64952,7 +64906,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 1279436974}
   lockIcon: {fileID: 1521212002}
-  price: 520
+  price: 1
   isLocked: 1
   isDeployed: 0
 --- !u!114 &2005771902
@@ -67524,7 +67478,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSkin
   outline: {fileID: 888389959}
   lockIcon: {fileID: 1706034001}
-  price: 510
+  price: 500
   isLocked: 1
   isDeployed: 0
 --- !u!225 &2109921493

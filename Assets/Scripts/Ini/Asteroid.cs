@@ -30,6 +30,9 @@ public class Asteroid : MonoBehaviour
     // Cached reference — avoids per-frame singleton lookup in Update
     private PowerUpManager powerUpManager;
 
+    // Global count of currently active asteroids — used by AsteroidSpawner to cap spawns
+    public static int ActiveCount { get; private set; }
+
     private Coroutine lifetimeCoroutine;
     private bool isDying = false;
 
@@ -46,6 +49,8 @@ public class Asteroid : MonoBehaviour
 
     private void OnEnable()
     {
+        ActiveCount++;
+
         // Reset visual & physics state so pooled asteroids are clean
         isDying = false;
         col.enabled = true;
@@ -58,10 +63,20 @@ public class Asteroid : MonoBehaviour
 
         // Cache PowerUpManager once per activation (avoids per-frame lookup)
         powerUpManager = PowerUpManager.Instance;
+
+        // Subscribe to the freeze event — zero per-frame cost
+        PowerUpManager.OnFreezeChanged += OnFreezeChanged;
+
+        // If freeze is already active when we spawn, apply it immediately
+        if (powerUpManager != null && powerUpManager.IsFreezeTimeActive)
+            ApplyFreeze(true);
     }
 
     private void OnDisable()
     {
+        ActiveCount--;
+        if (ActiveCount < 0) ActiveCount = 0; // safety clamp
+
         // Kill tweens so they don't run on a pooled (inactive) object
         spriteRenderer.DOKill();
 
@@ -71,6 +86,22 @@ public class Asteroid : MonoBehaviour
             StopCoroutine(lifetimeCoroutine);
             lifetimeCoroutine = null;
         }
+
+        // Unsubscribe — no dangling references
+        PowerUpManager.OnFreezeChanged -= OnFreezeChanged;
+
+        // Restore physics constraints so the pooled object is clean for next use
+        if (rb != null) rb.constraints = RigidbodyConstraints2D.None;
+    }
+
+    private void OnFreezeChanged(bool isFrozen) => ApplyFreeze(isFrozen);
+
+    private void ApplyFreeze(bool isFrozen)
+    {
+        if (rb == null) return;
+        rb.constraints = isFrozen
+            ? RigidbodyConstraints2D.FreezeAll
+            : RigidbodyConstraints2D.None;
     }
 
     // -------------------------------------------------------
@@ -184,13 +215,4 @@ public class Asteroid : MonoBehaviour
     // UPDATE — freeze powerup
     // -------------------------------------------------------
 
-    private void Update()
-    {
-        // Use cached reference — no per-frame singleton lookup
-        if (powerUpManager != null && powerUpManager.IsFreezeTimeActive)
-        {
-            rb.linearVelocity = Vector2.zero;
-            rb.angularVelocity = 0f;
-        }
-    }
 }

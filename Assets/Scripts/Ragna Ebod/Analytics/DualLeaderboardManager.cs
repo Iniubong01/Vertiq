@@ -27,6 +27,8 @@ public class DualLeaderboardManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
+    private bool _isInitialized = false;
+
     private async void Start()
     {
         // Auto-find NotificationPopup if not assigned
@@ -41,7 +43,9 @@ public class DualLeaderboardManager : MonoBehaviour
         
         try 
         { 
-            await UnityServices.InitializeAsync(); 
+            await UnityServices.InitializeAsync();
+            _isInitialized = true;
+            Debug.Log("[DualLeaderboardManager] Unity Services initialized successfully.");
         }
         catch (System.Exception e) 
         { 
@@ -53,25 +57,55 @@ public class DualLeaderboardManager : MonoBehaviour
     public async Task SetUsername(string newUsername)
     {
         if (string.IsNullOrEmpty(newUsername)) return;
+
+        // Save locally first — always safe
         PlayerPrefs.SetString("PlayerUsername", newUsername);
         PlayerPrefs.Save();
+        Debug.Log($"[DualLeaderboardManager] Username saved locally: {newUsername}");
+
+        // Guard: Unity Services must be fully initialized before any SDK calls
+        if (!_isInitialized)
+        {
+            Debug.LogWarning("[DualLeaderboardManager] Unity Services not yet initialized — skipping cloud sync.");
+            return;
+        }
 
         try
         {
-            if (AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn)
+            if (AuthenticationService.Instance == null)
             {
-                await AuthenticationService.Instance.UpdatePlayerNameAsync(newUsername);
+                Debug.LogWarning("[DualLeaderboardManager] AuthenticationService not available, skipping cloud sync.");
+                return;
             }
+
+            if (!AuthenticationService.Instance.IsSignedIn)
+            {
+                Debug.LogWarning("[DualLeaderboardManager] Not signed in, skipping cloud sync.");
+                return;
+            }
+
+            // Sanitize: Authentication SDK rejects names with special chars or > 50 chars
+            string safeName = newUsername.Length > 50 ? newUsername.Substring(0, 50) : newUsername;
+
+            Debug.Log($"[DualLeaderboardManager] Syncing username to cloud: {safeName}");
+            await AuthenticationService.Instance.UpdatePlayerNameAsync(safeName);
+            Debug.Log("[DualLeaderboardManager] Cloud username updated successfully.");
         }
         catch (System.Exception e)
         {
-            Debug.LogWarning($"[Leaderboard] Failed to update username: {e.Message}");
-            ShowNotification("Warning", "Username saved locally but could not sync to cloud.", Color.yellow);
+            // Never let this crash the caller
+            Debug.LogWarning($"[DualLeaderboardManager] Failed to update username in cloud: {e.GetType().Name} — {e.Message}");
         }
     }
 
     public async Task LoginToUnity(string walletAddress)
     {
+        if (!_isInitialized)
+        {
+            Debug.LogWarning("[DualLeaderboardManager] Unity Services not yet initialized — skipping LoginToUnity.");
+            return;
+        }
+
         if (AuthenticationService.Instance == null)
         {
             Debug.LogError("[Leaderboard] AuthenticationService is not available");
@@ -102,6 +136,7 @@ public class DualLeaderboardManager : MonoBehaviour
             ShowNotification("Login Failed", "Could not authenticate with leaderboard service.", Color.red);
         }
     }
+
 
     public async void SubmitScoreHybrid(long score)
     {

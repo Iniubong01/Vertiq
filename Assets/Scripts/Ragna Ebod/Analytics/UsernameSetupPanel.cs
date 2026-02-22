@@ -105,10 +105,14 @@ public class UsernameSetupPanel : MonoBehaviour
     public void Hide()
     {
         Debug.Log("[USERNAME PANEL] Hide() called");
-        StartCoroutine(AnimatePanel(false, () => 
+        StartCoroutine(AnimatePanel(false, () =>
         {
-            gameObject.SetActive(false);
-            Debug.Log("[USERNAME PANEL] Panel hidden and deactivated");
+            // Do NOT call gameObject.SetActive(false) here on Android.
+            // Deactivating a Canvas from within an input-event callback can
+            // cause Android to destroy the native window and kill the Activity.
+            // The CanvasGroup is already set to alpha=0 / non-interactive by
+            // AnimatePanel, so the panel is effectively invisible.
+            Debug.Log("[USERNAME PANEL] Panel hidden (kept active, CanvasGroup hidden)");
         }));
     }
 
@@ -163,21 +167,28 @@ public class UsernameSetupPanel : MonoBehaviour
     {
         try
         {
+            // Guard: auth service might not be initialized yet
+            if (AuthenticationService.Instance == null)
+            {
+                Debug.LogWarning("[UsernameSetupPanel] AuthenticationService not available — saving locally only.");
+                return true; // Local-only save still counts as success
+            }
+
             if (AuthenticationService.Instance.IsSignedIn)
             {
                 await AuthenticationService.Instance.UpdatePlayerNameAsync(name);
-                Debug.Log($"[Username] Updated to: {name}");
+                Debug.Log($"[UsernameSetupPanel] Cloud username updated to: {name}");
                 return true;
             }
             else
             {
-                Debug.LogWarning("[Username] User not signed in, saving locally only");
+                Debug.LogWarning("[UsernameSetupPanel] Not signed in — saving locally only.");
                 return true; // Still return true since we save locally
             }
         }
         catch (System.Exception ex)
         {
-            Debug.LogError($"[Username] Error: {ex.Message}");
+            Debug.LogError($"[UsernameSetupPanel] UpdateUsername failed!\nType: {ex.GetType().Name}\nMessage: {ex.Message}\nStack:\n{ex.StackTrace}");
             return false;
         }
     }
@@ -203,6 +214,9 @@ public class UsernameSetupPanel : MonoBehaviour
 
         while (timer < animationDuration)
         {
+            // Guard: object may be destroyed while animating
+            if (this == null || !gameObject) yield break;
+
             timer += Time.deltaTime;
             float t = timer / animationDuration;
             float curveT = popCurve.Evaluate(t);

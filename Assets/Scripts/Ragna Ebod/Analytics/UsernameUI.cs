@@ -5,38 +5,45 @@ using System.Collections;
 
 public class UsernameUI : MonoBehaviour
 {
+    public static UsernameUI Instance { get; private set; }
+
+    [SerializeField] private TMPro.TMP_Text debugPanel; // assign a TMP text in Inspector
+
     [Header("Input References")]
     public TMP_InputField usernameInput;
     public Button saveButton;
     public TMP_Text statusText;
 
-    [Header("Display References")]
-    public TMP_Text usernameDisplay; // Drag the Text object that should show "Ragna" here
+    // The scene-side text is registered via UsernameDisplayBridge — not Inspector-linked
+    private TMP_Text _usernameDisplay;
 
-    private bool _started = false;
+    private void Awake()
+    {
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+        Instance = this;
+        // This is already DontDestroyOnLoad via ProfileManager parent
+    }
 
     private void Start()
     {
-        _started = true;
-
         if (saveButton != null)
             saveButton.onClick.AddListener(OnSaveClicked);
 
         RefreshDisplay();
     }
 
-    // Fires every time this object/scene is re-enabled (e.g. returning from game scene).
-    // Skip on the very first enable since Start() handles it directly.
-    private void OnEnable()
+    // Called by UsernameDisplayBridge when the scene text object enables
+    public void RegisterDisplay(TMP_Text display)
     {
-        if (!_started) return; // Start() hasn't run yet — it will call RefreshDisplay itself
-        StartCoroutine(RefreshNextFrame());
+        _usernameDisplay = display;
+        RefreshDisplay(); // Immediately update with the saved name
     }
 
-    private IEnumerator RefreshNextFrame()
+    // Called by UsernameDisplayBridge when the scene text object disables
+    public void UnregisterDisplay(TMP_Text display)
     {
-        yield return null; // wait one frame for scene objects to settle
-        RefreshDisplay();
+        if (_usernameDisplay == display)
+            _usernameDisplay = null;
     }
 
     private void RefreshDisplay()
@@ -50,69 +57,77 @@ public class UsernameUI : MonoBehaviour
     }
 
     private async void OnSaveClicked()
+{
+    Debug.Log("[UsernameUI] OnSaveClicked — START");
+    try
     {
-        try
-        {
-            string newName = usernameInput != null ? usernameInput.text : "";
+        Debug.Log("[UsernameUI] STEP 1 — reading usernameInput");
+        string newName = usernameInput != null ? usernameInput.text : "";
+        Debug.Log($"[UsernameUI] STEP 1 — newName='{newName}'");
 
-            if (newName.Length < 3 || newName.Length > 20)
+        if (newName.Length < 3 || newName.Length > 20)
+        {
+            if (statusText != null) statusText.text = "Name must be 3-20 characters";
+            return;
+        }
+
+        Debug.Log($"[UsernameUI] STEP 3 — DualLeaderboardManager is {(DualLeaderboardManager.Instance != null ? "READY" : "NULL")}");
+
+        if (DualLeaderboardManager.Instance != null)
+        {
+            if (saveButton != null) saveButton.interactable = false;
+            if (statusText != null) statusText.text = "Saving...";
+
+            Debug.Log("[UsernameUI] STEP 5 — awaiting SetUsername...");
+            await DualLeaderboardManager.Instance.SetUsername(newName);
+            Debug.Log("[UsernameUI] STEP 5 — SetUsername returned");
+
+            if (this == null || !gameObject.activeInHierarchy)
             {
-                if (statusText != null) statusText.text = "Name must be 3-20 characters";
+                Debug.LogWarning("[UsernameUI] Object destroyed after await");
                 return;
             }
 
-            if (DualLeaderboardManager.Instance != null)
-            {
-                if (saveButton != null) saveButton.interactable = false;
-                if (statusText != null) statusText.text = "Saving...";
-
-                await DualLeaderboardManager.Instance.SetUsername(newName);
-
-                // Guard: object may have been destroyed while awaiting
-                if (this == null || !gameObject.activeInHierarchy) return;
-
-                if (statusText != null) statusText.text = "Saved!";
-                if (saveButton != null) saveButton.interactable = true;
-
-                UpdateUsernameText(newName);
-            }
-            else
-            {
-                // Fallback: save locally if manager isn't ready yet
-                PlayerPrefs.SetString("PlayerUsername", newName);
-                PlayerPrefs.Save();
-                if (statusText != null) statusText.text = "Saved!";
-                UpdateUsernameText(newName);
-                Debug.LogWarning("[UsernameUI] DualLeaderboardManager not ready — saved locally only.");
-            }
-        }
-        catch (System.Exception ex)
-        {
-            // Catch-all: prevents async void from crashing the app
-            Debug.LogError($"[UsernameUI] Unexpected error in OnSaveClicked: {ex.Message}");
-            if (statusText != null) statusText.text = "Error saving. Try again.";
+            if (statusText != null) statusText.text = "Saved!";
             if (saveButton != null) saveButton.interactable = true;
-        }
-    }
-
-    private void UpdateUsernameText(string username)
-    {
-        if (usernameDisplay == null) return;
-
-        if (string.IsNullOrEmpty(username))
-        {
-            usernameDisplay.text = "Guest"; // Fallback if no name saved
+            UpdateUsernameText(newName);
         }
         else
         {
-            // Strip the #1234 tag if it exists, so it just shows "Ragna"
-            if (username.Contains("#")) 
-            {
+            Debug.Log("[UsernameUI] STEP 3B — saving locally");
+            PlayerPrefs.SetString("PlayerUsername", newName);
+            PlayerPrefs.Save();
+            if (statusText != null) statusText.text = "Saved!";
+            UpdateUsernameText(newName);
+            Debug.LogWarning("[UsernameUI] DualLeaderboardManager not ready — saved locally only.");
+        }
+
+        Debug.Log("[UsernameUI] OnSaveClicked — COMPLETE");
+    }
+    catch (System.Exception ex)
+    {
+        string msg = $"CRASH: {ex.GetType().Name}\n{ex.Message}";
+        Debug.LogError(msg);
+        if (debugPanel != null) debugPanel.text = msg;  // shows on screen
+        if (statusText != null) statusText.text = "Error. See screen.";
+        if (saveButton != null) saveButton.interactable = true;
+    }
+}
+
+    private void UpdateUsernameText(string username)
+    {
+        if (_usernameDisplay == null) return;
+
+        if (string.IsNullOrEmpty(username))
+        {
+            _usernameDisplay.text = "Guest";
+        }
+        else
+        {
+            if (username.Contains("#"))
                 username = username.Split('#')[0];
-            }
-            
-            // [FIX] Shows ONLY the username
-            usernameDisplay.text = username;
+
+            _usernameDisplay.text = username;
         }
     }
 }

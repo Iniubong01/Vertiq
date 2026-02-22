@@ -90,6 +90,17 @@ public class WalletConnector : MonoBehaviour
     }
 
     /// <summary>
+    /// Call this from a "Change Username" button to open the panel at any time.
+    /// </summary>
+    public void ShowUsernamePanel()
+    {
+        if (usernameSetupPanel != null)
+            usernameSetupPanel.Show();
+        else
+            Debug.LogWarning("[Wallet] ShowUsernamePanel: usernameSetupPanel is not assigned.");
+    }
+
+    /// <summary>
     /// Call this method to change the checkbox state at runtime (e.g., from a settings menu)
     /// </summary>
     public void SetAlwaysShowUsernamePanel(bool value)
@@ -244,7 +255,18 @@ public class WalletConnector : MonoBehaviour
             }
             else
             {
-                Debug.LogWarning("[Wallet] AuthenticationService not available or user not signed in.");
+                // Not signed in (e.g. services still initializing on first launch).
+                // If there's no local username either, this is a brand-new user — show the panel.
+                if (string.IsNullOrEmpty(cachedUsername))
+                {
+                    Debug.Log("[Wallet] Opening Panel: Not signed in and no local username — first-time user.");
+                    _pendingUsernamePrompt = true;
+                    AttemptShowUsernamePanel();
+                }
+                else
+                {
+                    Debug.LogWarning("[Wallet] Not signed in, but local username exists — skipping panel.");
+                }
             }
         }
         catch (Exception ex)

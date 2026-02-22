@@ -8,6 +8,12 @@ public class PowerUpManager : MonoBehaviour
 {
     public static PowerUpManager Instance;
 
+    /// <summary>
+    /// Fires true when freeze starts, false when it ends.
+    /// Asteroid.cs subscribes to this instead of polling per frame — zero Update() cost.
+    /// </summary>
+    public static event System.Action<bool> OnFreezeChanged;
+
     [Header("Game State")]
     public bool shieldActive;
     private bool multipleBulletsActive;
@@ -298,6 +304,7 @@ public class PowerUpManager : MonoBehaviour
         if (freezeCoroutine != null) StopCoroutine(freezeCoroutine);
         
         freezeTimeActive = true;
+        OnFreezeChanged?.Invoke(true);
         freezeCoroutine = StartCoroutine(ResetFreezeTime(powerUpDuration));
     }
 
@@ -305,6 +312,7 @@ public class PowerUpManager : MonoBehaviour
     {
         yield return new WaitForSeconds(duration);
         freezeTimeActive = false;
+        OnFreezeChanged?.Invoke(false);
         freezeCoroutine = null;
     }
 
@@ -377,6 +385,7 @@ public class PowerUpManager : MonoBehaviour
             case PowerUpType.FreezeTime:
                 if (freezeCoroutine != null) StopCoroutine(freezeCoroutine);
                 freezeTimeActive = true;
+                OnFreezeChanged?.Invoke(true);
                 freezeCoroutine = StartCoroutine(ResetFreezeTime(duration));
                 break;
 

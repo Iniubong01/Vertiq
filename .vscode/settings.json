@@ -67,5 +67,7 @@
         "*.sln": "*.csproj",
     },
     "dotnet.defaultSolution": "Vertiq.sln",
-    "dotrush.roslyn.projectOrSolutionFiles": []
+    "dotrush.roslyn.projectOrSolutionFiles": [
+        "c:\\Users\\Ragna\\Desktop\\Vertiq\\Assembly-CSharp.csproj"
+    ]
 }
