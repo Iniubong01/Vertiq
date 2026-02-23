@@ -147,33 +147,6 @@ Assets/Scripts/
             └── VortiqProgram.cs
 ```
 
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Unity 6 (6000.2.8f1)
-- Android Build Support module (for mobile builds)
-- A Solana wallet (Phantom or Backpack recommended)
-
-### Setup
-
-1. Clone the repository
-2. Open the project in Unity 6 (6000.2.8f1)
-3. Install required packages via **Package Manager** (Unity Gaming Services, DOTween)
-4. Configure your **Unity Project ID** in `Edit → Project Settings → Services`
-5. Set your seller wallet address in the `MarketplacePurchase` Inspector field
-6. Hit **Play** in the Editor to test with the built-in keypair wallet
-
-### Android Build
-
-1. Switch platform to **Android** in Build Settings
-2. Set minimum API level to **26+**
-3. Build and deploy via `APK Build/` or directly to a connected device
-
----
-
 ## 📄 License
 
 This project is proprietary. All rights reserved.
