@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 public class MenuInputHandler : MonoBehaviour
 {
@@ -7,14 +8,13 @@ public class MenuInputHandler : MonoBehaviour
     [SerializeField] private InputActionReference startButtonAction; // Start button (typically Gamepad Start)
     [SerializeField] private InputActionReference selectButtonAction; // Select button (typically Gamepad Select/Back)
 
+    [Header("Scene Settings")]
+    [SerializeField] private string gameSceneName = "Game"; // Name of your game scene
+
     [Header("Menu Actions")]
     [SerializeField] private GameObject startGameButton; // Reference to your "Start Game" button
-    [SerializeField] private GameObject storeButton;
+    [SerializeField] private GameObject storeButton; // Reference to your "Store" button
 
-    private UIManager uiManager;
-
-
-    
     private void OnEnable()
     {
         // Enable Start Button (for starting the game)
@@ -51,20 +51,22 @@ public class MenuInputHandler : MonoBehaviour
 
     private void OnStartButtonPressed(InputAction.CallbackContext context)
     {
-        Debug.Log("[MenuInput] Start button pressed - Starting game");
+        //Debug.Log("[MenuInput] Start button pressed - Starting game");
         StartGame();
     }
 
     private void OnSelectButtonPressed(InputAction.CallbackContext context)
     {
-        Debug.Log("[MenuInput] Select button pressed - Opening store");
+        //Debug.Log("[MenuInput] Select button pressed - Opening store");
         OpenStore();
     }
 
-    // Call your actual start game method here
+    /// <summary>
+    /// Starts the game by loading the game scene
+    /// </summary>
     public void StartGame()
     {
-        // Option 1: Simulate button click if you have a button reference
+        // Try to invoke the button if it exists (for consistency with UI)
         if (startGameButton != null)
         {
             var button = startGameButton.GetComponent<UnityEngine.UI.Button>();
@@ -75,17 +77,21 @@ public class MenuInputHandler : MonoBehaviour
             }
         }
 
-        // Option 2: Direct call to UIManager or your game starter
-        // Replace this with your actual start game method
-        // UIManager.StartGame(); 
-        // or
-        // GameManager.Instance.StartNewGame();
-        
-        Debug.LogWarning("[MenuInput] No start game method assigned. Set up your start game logic here.");
+        // Fallback: Load the game scene directly
+        //Debug.Log($"[MenuInput] Loading game scene: {gameSceneName}");
+        if (SoundManager.Instance != null)
+        {
+            SoundManager.Instance.PlayButtonSound();
+        }
+        SceneManager.LoadScene(gameSceneName);
     }
 
+    /// <summary>
+    /// Opens the store menu
+    /// </summary>
     public void OpenStore()
     {
+        // Try to invoke the store button
         if (storeButton != null)
         {
             var button = storeButton.GetComponent<UnityEngine.UI.Button>();
@@ -95,11 +101,8 @@ public class MenuInputHandler : MonoBehaviour
                 return;
             }
         }
-        // Replace this with your actual store opening method
-        // uiManager.MenuToStore();
-        // or
-        // StoreManager.Instance.ShowStore();
-        
-        Debug.LogWarning("[MenuInput] No store open method assigned. Set up your store logic here.");
+
+        // Fallback: Log warning
+        //Debug.LogWarning("[MenuInput] Store button not assigned or not interactable!");
     }
 }

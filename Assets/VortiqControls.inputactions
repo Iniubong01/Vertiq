@@ -276,6 +276,17 @@
                 },
                 {
                     "name": "",
+                    "id": "08b21de5-62f3-462d-b94b-d8823f615b0f",
+                    "path": "<Mouse>/position",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Look",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "143bb1cd-cc10-4eca-a2f0-a3664166fe91",
                     "path": "<Gamepad>/rightShoulder",
                     "interactions": "",
@@ -331,8 +342,8 @@
                 },
                 {
                     "name": "",
-                    "id": "a99069e9-fb60-438a-a94c-84409bfdb8bc",
-                    "path": "",
+                    "id": "5c09e306-b3c6-45e8-9be7-6b170bf18fa0",
+                    "path": "<Keyboard>/space",
                     "interactions": "",
                     "processors": "",
                     "groups": "",

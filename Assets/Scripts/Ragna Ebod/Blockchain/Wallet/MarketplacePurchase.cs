@@ -51,9 +51,7 @@ public class MarketplacePurchase : MonoBehaviour
 
         bool isToken = !string.IsNullOrEmpty(mintAddress);
         
-        // Unified Wallet Check (Editor vs Mobile)
         PublicKey buyerKey = WalletConnector.UserPublicKey;
-        Account editorAccount = WalletConnector.PlayerAccount;
 
         if (buyerKey == null)
         {
@@ -201,8 +199,6 @@ public class MarketplacePurchase : MonoBehaviour
             // ---------------------------------------------------------
             // BUILD TRANSACTION AND SIGN
             // ---------------------------------------------------------
-            ShowPopup("Wallet", "Please sign transaction...", Color.yellow);
-
             var transaction = new Transaction
             {
                 RecentBlockHash = blockHashResult.Result.Value.Blockhash,
@@ -212,31 +208,30 @@ public class MarketplacePurchase : MonoBehaviour
 
             RequestResult<string> result = null;
 
-            if (editorAccount != null)
+#if UNITY_EDITOR
+            // PATH A: EDITOR — sign directly with the sticky wallet Account
+            Account editorAccount = WalletConnector.PlayerAccount;
+            if (editorAccount == null)
             {
-                // PATH A: EDITOR (Sticky Wallet)
-                // 1. Sign
-                var signature = editorAccount.Sign(transaction.CompileMessage());
-                transaction.AddSignature(editorAccount.PublicKey, signature);
-                
-                // 2. Serialize to Base64 String [FIXED]
-                byte[] txBytes = transaction.Serialize();
-                string txBase64 = Convert.ToBase64String(txBytes);
-
-                // 3. Send using the String overload
-                result = await Web3.Rpc.SendTransactionAsync(txBase64);
-            }
-            else if (Web3.Wallet != null)
-            {
-                // PATH B: MOBILE (Adapter)
-                // This method expects the Transaction Object
-                result = await Web3.Wallet.SignAndSendTransaction(transaction);
-            }
-            else
-            {
-                ShowPopup("Error", "No signing method found.", Color.red);
+                ShowPopup("Error", "No editor wallet found.", Color.red);
                 return;
             }
+            ShowPopup("Wallet", "Signing with Editor Wallet...", Color.yellow);
+            var signature = editorAccount.Sign(transaction.CompileMessage());
+            transaction.AddSignature(editorAccount.PublicKey, signature);
+            byte[] txBytes = transaction.Serialize();
+            string txBase64 = Convert.ToBase64String(txBytes);
+            result = await Web3.Rpc.SendTransactionAsync(txBase64);
+#else
+            // PATH B: MOBILE (Android/iOS) — use wallet adapter for native signing
+            if (Web3.Wallet == null)
+            {
+                ShowPopup("Error", "No wallet connected.", Color.red);
+                return;
+            }
+            ShowPopup("Wallet", "Please approve on device...", Color.yellow);
+            result = await Web3.Wallet.SignAndSendTransaction(transaction);
+#endif
 
             HandleTransactionResult(result != null && result.WasSuccessful, result != null ? result.Reason : "Unknown error", onSuccess);
         }

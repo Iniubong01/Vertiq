@@ -4,6 +4,10 @@ using TMPro;
 
 public class SkinManager : MonoBehaviour
 {
+    [Header("Marketplace Integration")]
+    [SerializeField] private MarketplacePurchase paymentProcessor;
+    [SerializeField] private string playTokenMintAddress; // $PLAY token mint address
+
     [Header("Player Skin")]
     [SerializeField]  GameObject [] outline;
     [SerializeField] Button [] skinButtons;
@@ -48,8 +52,32 @@ public class SkinManager : MonoBehaviour
 
     void Start()
     {
+        Debug.Log("[SkinManager] Start() called - Setting up button listeners...");
+
+        // Connect deploy buttons
         deployButton.onClick.AddListener(DeployPlayerSkin);
         envDeployButton.onClick.AddListener(DeployEnvironmentSkin);
+
+        // Connect purchase buttons
+        if (purchaseButton != null)
+        {
+            purchaseButton.onClick.AddListener(PurchasePlayerSkin);
+            Debug.Log("[SkinManager] Player skin purchase button listener ADDED");
+        }
+        else
+        {
+            Debug.LogError("[SkinManager] Purchase button is NULL! Not assigned in Inspector!");
+        }
+
+        if (envPurchaseButton != null)
+        {
+            envPurchaseButton.onClick.AddListener(PurchaseEnvironmentSkin);
+            Debug.Log("[SkinManager] Environment skin purchase button listener ADDED");
+        }
+        else
+        {
+            Debug.LogError("[SkinManager] Environment purchase button is NULL! Not assigned in Inspector!");
+        }
 
         for (int i = 0; i < skinButtons.Length; i++)
         {
@@ -65,6 +93,7 @@ public class SkinManager : MonoBehaviour
             environmentSkinButtons[i].onClick.AddListener(() => OnEnvironmentSelectionChange(index));
         }
 
+        LoadUnlockStates(); // Load purchased skins from PlayerPrefs
         LoadSavedSelections();
     }
 
@@ -109,7 +138,9 @@ public class SkinManager : MonoBehaviour
         playerSkin.isDeployed = PlayerPrefs.GetInt(PLAYER_SKIN_KEY, 0) == index; // Check if the currently selected skin is deployed
         deployedText.text = playerSkin.isDeployed ? deployedTextDefault : deployTextDefault;
 
-        purchaseButton.interactable = !playerSkin.isLocked;
+        // If skin is LOCKED → show purchase button (interactable)
+        // If skin is UNLOCKED → show deploy button
+        purchaseButton.interactable = playerSkin.isLocked; // ✅ FIXED: interactable when locked
         purchaseButton.gameObject.SetActive(playerSkin.isLocked);
         deployButton.gameObject.SetActive(!playerSkin.isLocked);
     }
@@ -135,7 +166,9 @@ public class SkinManager : MonoBehaviour
         playerSkin.isDeployed = PlayerPrefs.GetInt(ENV_SKIN_KEY, 0) == index; // Check if the currently selected skin is deployed
         envDeployedText.text = playerSkin.isDeployed ? deployedTextDefault : deployTextDefault;
         
-        envPurchaseButton.interactable = !playerSkin.isLocked;
+        // If skin is LOCKED → show purchase button (interactable)
+        // If skin is UNLOCKED → show deploy button
+        envPurchaseButton.interactable = playerSkin.isLocked; // ✅ FIXED: interactable when locked
         envPurchaseButton.gameObject.SetActive(playerSkin.isLocked);
         envDeployButton.gameObject.SetActive(!playerSkin.isLocked);
     }
@@ -160,6 +193,35 @@ public class SkinManager : MonoBehaviour
         envDeployedText.text = deployedTextDefault;
     }
 
+    void LoadUnlockStates()
+    {
+        // Restore player skin unlock states
+        for (int i = 0; i < skinButtons.Length; i++)
+        {
+            string unlockKey = $"PlayerSkin_Unlocked_{i}";
+            bool isUnlocked = PlayerPrefs.GetInt(unlockKey, 0) == 1;
+
+            var skinComponent = skinButtons[i].GetComponent<PlayerSkin>();
+            if (skinComponent != null && isUnlocked)
+            {
+                skinComponent.isLocked = false;
+            }
+        }
+
+        // Restore environment skin unlock states
+        for (int i = 0; i < environmentSkinButtons.Length; i++)
+        {
+            string unlockKey = $"EnvironmentSkin_Unlocked_{i}";
+            bool isUnlocked = PlayerPrefs.GetInt(unlockKey, 0) == 1;
+
+            var skinComponent = environmentSkinButtons[i].GetComponent<PlayerSkin>();
+            if (skinComponent != null && isUnlocked)
+            {
+                skinComponent.isLocked = false;
+            }
+        }
+    }
+
     void LoadSavedSelections()
     {
         // Player Skin
@@ -181,38 +243,80 @@ public class SkinManager : MonoBehaviour
     #region Purchase Logic
     public void PurchasePlayerSkin()
     {
-        // Currency logic (If statement)
-        // If (SolanaCoins >= playerSkin.price)
-        for (int i = 0; i < skinButtons.Length; i++)
-        {
-            var playerSkin = skinButtons[i].GetComponent<PlayerSkin>();
+        Debug.Log($"[PurchasePlayerSkin] Button clicked! Selected Index: {selectedPlayerSkinIndex}");
 
-            if (playerSkin.isLocked)
-            {
-                playerSkin.isLocked = false; // Unlock the skin
-                OnSelectionChange(i); // Update UI after purchase
-                Debug.Log("Player Skin Purchased: " + i);   
-            }
+        if (paymentProcessor == null)
+        {
+            Debug.LogError("MarketplacePurchase not assigned!");
             return;
         }
+
+        // Get the SELECTED skin's component
+        var selectedSkin = skinButtons[selectedPlayerSkinIndex].GetComponent<PlayerSkin>();
+
+        if (selectedSkin == null || !selectedSkin.isLocked)
+        {
+            Debug.LogWarning("Skin is already unlocked or component missing.");
+            return;
+        }
+
+        float price = selectedSkin.price;
+        Debug.Log($"Processing purchase for skin #{selectedPlayerSkinIndex} at price {price} $PLAY");
+
+        // Process blockchain payment using $PLAY tokens
+        paymentProcessor.PurchaseWithSplToken(price, playTokenMintAddress, () =>
+        {
+            // SUCCESS CALLBACK: Unlock the skin
+            selectedSkin.isLocked = false;
+
+            // Save unlock state to PlayerPrefs
+            string unlockKey = $"PlayerSkin_Unlocked_{selectedPlayerSkinIndex}";
+            PlayerPrefs.SetInt(unlockKey, 1);
+            PlayerPrefs.Save();
+
+            // Update UI
+            OnSelectionChange(selectedPlayerSkinIndex);
+            Debug.Log($"Player Skin #{selectedPlayerSkinIndex} Purchased Successfully!");
+        });
     }
 
     public void PurchaseEnvironmentSkin()
     {
-        // Currency logic (If statement)
-        // If (SolanaCoins >= playerSkin.price)
-        for (int i = 0; i < environmentSkinButtons.Length; i++)
-        {
-            var playerSkin = environmentSkinButtons[i].GetComponent<PlayerSkin>();
+        Debug.Log($"[PurchaseEnvironmentSkin] Button clicked! Selected Index: {selectedEnvSkinIndex}");
 
-            if (playerSkin.isLocked)
-            {
-                playerSkin.isLocked = false; // Unlock the skin
-                OnSelectionChange(i); // Update UI after purchase
-                Debug.Log("Player Skin Purchased: " + i);   
-            }
+        if (paymentProcessor == null)
+        {
+            Debug.LogError("MarketplacePurchase not assigned!");
             return;
         }
+
+        // Get the SELECTED environment skin's component
+        var selectedSkin = environmentSkinButtons[selectedEnvSkinIndex].GetComponent<PlayerSkin>();
+
+        if (selectedSkin == null || !selectedSkin.isLocked)
+        {
+            Debug.LogWarning("Skin is already unlocked or component missing.");
+            return;
+        }
+
+        float price = selectedSkin.price;
+        Debug.Log($"Processing purchase for environment skin #{selectedEnvSkinIndex} at price {price} $PLAY");
+
+        // Process blockchain payment using $PLAY tokens
+        paymentProcessor.PurchaseWithSplToken(price, playTokenMintAddress, () =>
+        {
+            // SUCCESS CALLBACK: Unlock the skin
+            selectedSkin.isLocked = false;
+
+            // Save unlock state to PlayerPrefs
+            string unlockKey = $"EnvironmentSkin_Unlocked_{selectedEnvSkinIndex}";
+            PlayerPrefs.SetInt(unlockKey, 1);
+            PlayerPrefs.Save();
+
+            // Update UI
+            OnEnvironmentSelectionChange(selectedEnvSkinIndex);
+            Debug.Log($"Environment Skin #{selectedEnvSkinIndex} Purchased Successfully!");
+        });
     }
     #endregion
 }

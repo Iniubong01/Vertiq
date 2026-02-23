@@ -10,11 +10,11 @@ public class DualLeaderboardManager : MonoBehaviour
 {
     public static DualLeaderboardManager Instance { get; private set; }
 
-    [Header("Web3 Setup")]
-    public SoarLeaderboardManager soarManager; 
-
     [Header("Web2 Setup")]
-    public string unityLeaderboardId = "vortiq_leaderboard"; 
+    public string unityLeaderboardId = "vortiq_leaderboard";
+    
+    [Header("UI Feedback")]
+    public NotificationPopup notificationPopup; 
 
     private void Awake()
     {
@@ -27,26 +27,92 @@ public class DualLeaderboardManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
+    private bool _isInitialized = false;
+
     private async void Start()
     {
-        try { await UnityServices.InitializeAsync(); }
-        catch (System.Exception e) { Debug.LogError($"Unity Services Init Error: {e.Message}"); }
+        // Auto-find NotificationPopup if not assigned
+        if (notificationPopup == null)
+        {
+            notificationPopup = FindFirstObjectByType<NotificationPopup>();
+            if (notificationPopup == null)
+            {
+                Debug.LogWarning("[DualLeaderboardManager] NotificationPopup not found in scene. User feedback will be limited.");
+            }
+        }
+        
+        try 
+        { 
+            await UnityServices.InitializeAsync();
+            _isInitialized = true;
+            Debug.Log("[DualLeaderboardManager] Unity Services initialized successfully.");
+        }
+        catch (System.Exception e) 
+        { 
+            Debug.LogWarning($"[DualLeaderboardManager] Unity Services Init Error: {e.Message}");
+            ShowNotification("Service Error", "Failed to initialize services. Some features may be unavailable.", Color.red);
+        }
     }
 
     public async Task SetUsername(string newUsername)
     {
         if (string.IsNullOrEmpty(newUsername)) return;
+
+        // Save locally first — always safe
         PlayerPrefs.SetString("PlayerUsername", newUsername);
         PlayerPrefs.Save();
+        Debug.Log($"[DualLeaderboardManager] Username saved locally: {newUsername}");
 
-        if (AuthenticationService.Instance.IsSignedIn)
+        // Guard: Unity Services must be fully initialized before any SDK calls
+        if (!_isInitialized)
         {
-            await AuthenticationService.Instance.UpdatePlayerNameAsync(newUsername);
+            Debug.LogWarning("[DualLeaderboardManager] Unity Services not yet initialized — skipping cloud sync.");
+            return;
+        }
+
+        try
+        {
+            if (AuthenticationService.Instance == null)
+            {
+                Debug.LogWarning("[DualLeaderboardManager] AuthenticationService not available, skipping cloud sync.");
+                return;
+            }
+
+            if (!AuthenticationService.Instance.IsSignedIn)
+            {
+                Debug.LogWarning("[DualLeaderboardManager] Not signed in, skipping cloud sync.");
+                return;
+            }
+
+            // Sanitize: Authentication SDK rejects names with special chars or > 50 chars
+            string safeName = newUsername.Length > 50 ? newUsername.Substring(0, 50) : newUsername;
+
+            Debug.Log($"[DualLeaderboardManager] Syncing username to cloud: {safeName}");
+            await AuthenticationService.Instance.UpdatePlayerNameAsync(safeName);
+            Debug.Log("[DualLeaderboardManager] Cloud username updated successfully.");
+        }
+        catch (System.Exception e)
+        {
+            // Never let this crash the caller
+            Debug.LogWarning($"[DualLeaderboardManager] Failed to update username in cloud: {e.GetType().Name} — {e.Message}");
         }
     }
 
     public async Task LoginToUnity(string walletAddress)
     {
+        if (!_isInitialized)
+        {
+            Debug.LogWarning("[DualLeaderboardManager] Unity Services not yet initialized — skipping LoginToUnity.");
+            return;
+        }
+
+        if (AuthenticationService.Instance == null)
+        {
+            Debug.LogError("[Leaderboard] AuthenticationService is not available");
+            ShowNotification("Service Error", "Authentication service unavailable.", Color.red);
+            return;
+        }
+        
         if (AuthenticationService.Instance.IsSignedIn) return;
 
         try
@@ -64,17 +130,35 @@ public class DualLeaderboardManager : MonoBehaviour
             }
             await AuthenticationService.Instance.UpdatePlayerNameAsync(displayName);
         }
-        catch (System.Exception e) { Debug.LogError($"[Web2] Login Failed: {e.Message}"); }
+        catch (System.Exception e) 
+        { 
+            Debug.LogWarning($"[Web2] Login Failed: {e.Message}");
+            ShowNotification("Login Failed", "Could not authenticate with leaderboard service.", Color.red);
+        }
     }
+
 
     public async void SubmitScoreHybrid(long score)
     {
-        if (WalletConnector.UserPublicKey == null) return;
+        if (WalletConnector.UserPublicKey == null) 
+        {
+            Debug.LogWarning("[Leaderboard] Cannot submit score - wallet not connected");
+            return;
+        }
+        
         string walletAddress = WalletConnector.UserPublicKey.ToString();
+
+        // Check if authentication service is available
+        if (AuthenticationService.Instance == null)
+        {
+            Debug.LogError("[Leaderboard] AuthenticationService not available");
+            ShowNotification("Service Error", "Leaderboard service unavailable.", Color.red);
+            return;
+        }
 
         if (!AuthenticationService.Instance.IsSignedIn)
         {
-            LoginToUnity(walletAddress);
+            await LoginToUnity(walletAddress);
             await Task.Delay(1000);
         }
 
@@ -88,6 +172,10 @@ public class DualLeaderboardManager : MonoBehaviour
                 // If Custom (-1), fallback to 0 for global leaderboard
                 if (avatarIndex < 0) avatarIndex = 0; 
             }
+            else
+            {
+                Debug.LogWarning("[Leaderboard] ProfilePictureManager not found, using default avatar");
+            }
 
             // 2. Prepare Metadata (Wallet + Avatar)
             var metadata = new Dictionary<string, string> { 
@@ -100,13 +188,56 @@ public class DualLeaderboardManager : MonoBehaviour
             var response = await LeaderboardsService.Instance.AddPlayerScoreAsync(unityLeaderboardId, score, options);
             
             Debug.Log($"[Web2] Score Uploaded! Rank: {response.Rank} | Avatar: {avatarIndex}");
+            //ShowNotification("Score Saved!", $"Rank: #{response.Rank}", Color.green);
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"[Web2] Failed: {e.Message}");
+            Debug.LogWarning($"[Web2] Failed to submit score: {e.Message}");
+            
+            // Provide specific error messages based on exception type
+            string userMessage = "Could not save score to leaderboard.";
+            if (e.Message.Contains("network") || e.Message.Contains("timeout"))
+            {
+                userMessage = "Network error. Score saved locally.";
+            }
+            else if (e.Message.Contains("quota") || e.Message.Contains("limit"))
+            {
+                userMessage = "Leaderboard limit reached. Try again later.";
+            }
+            
+            ShowNotification("Upload Failed", userMessage, Color.red);
         }
 
-        if (AnalyticsManager.Instance != null)
-            AnalyticsManager.Instance.TrackWalletLogin(walletAddress);
+        // Safe analytics call with null check
+        try
+        {
+            if (AnalyticsManager.Instance != null)
+                AnalyticsManager.Instance.TrackWalletLogin(walletAddress);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[Leaderboard] Analytics tracking failed: {e.Message}");
+        }
+    }
+    
+    private void ShowNotification(string title, string message, Color color)
+    {
+        try
+        {
+            if (notificationPopup != null)
+            {
+                notificationPopup.Show(title, message, color);
+            }
+            else
+            {
+                // Fallback if notification popup not available
+                Debug.Log($"[Notification] {title}: {message}");
+            }
+        }
+        catch (System.Exception e)
+        {
+            // Prevent notification system from crashing the game
+            Debug.LogWarning($"[DualLeaderboardManager] Failed to show notification: {e.Message}");
+        }
     }
 }

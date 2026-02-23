@@ -92,8 +92,31 @@ public class SoarLeaderboardManager : MonoBehaviour
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[Soar] Error: {ex.Message}");
-            ShowPopup("Failed", "Could not submit score", Color.red);
+            //Debug.LogError($"[Soar] Error: {ex.Message}");
+            
+            // Provide specific error messages for common Solana issues
+            string userMessage = "Could not submit score";
+            Color messageColor = Color.red;
+            
+            if (ex.Message.Contains("insufficient") || ex.Message.Contains("balance"))
+            {
+                userMessage = "Insufficient SOL for transaction fees";
+            }
+            else if (ex.Message.Contains("timeout") || ex.Message.Contains("expired"))
+            {
+                userMessage = "Transaction timed out. Try again.";
+                messageColor = Color.yellow;
+            }
+            else if (ex.Message.Contains("RPC") || ex.Message.Contains("node"))
+            {
+                userMessage = "Network error. Check connection.";
+            }
+            else if (ex.Message.Contains("signature") || ex.Message.Contains("rejected"))
+            {
+                userMessage = "Transaction was rejected";
+            }
+            
+            ShowPopup("Failed", userMessage, messageColor);
         }
     }
 
@@ -189,7 +212,7 @@ public class SoarLeaderboardManager : MonoBehaviour
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[Soar] Transaction Failed: {ex.Message}");
+            //Debug.LogError($"[Soar] Transaction Failed: {ex.Message}");
             ShowPopup("Error", "Transaction Failed", Color.red);
         }
     }

@@ -33,7 +33,7 @@ public class UIManager : MonoBehaviour
 
     [Header("UI References")]
     [SerializeField] private float fadeDuration = 0.7f;
-    [SerializeField] private CanvasGroup splashUICG, loadingUICG, menuUICG, storeUICG, solStoreUICG;
+    [SerializeField] private CanvasGroup splashUICG, loadingUICG, menuUICG, storeUICG, solStoreUICG, leaderboardUICG;
 
     [Header("Loading UI")]
     [SerializeField] private Slider progressBar;
@@ -81,6 +81,16 @@ public class UIManager : MonoBehaviour
         UpdateMultipleBulletsVisuals();
         UpdateFreezeTimeVisuals();
         UpdateFullLivesVisuals();
+
+        // Play a different audio in Splash scene
+        SoundManager.Instance.EnableSplashAS();
+        
+        // Refresh leaderboard on start so it's ready when user opens it
+        LeaderboardDisplay leaderboardDisplay = FindAnyObjectByType<LeaderboardDisplay>();
+        if (leaderboardDisplay != null)
+        {
+            leaderboardDisplay.RefreshLeaderboard();
+        }
     }
 
     private void ResetAllUI()
@@ -90,6 +100,7 @@ public class UIManager : MonoBehaviour
         DisableCanvasGroupInstant(menuUICG);
         DisableCanvasGroupInstant(storeUICG);
         DisableCanvasGroupInstant(solStoreUICG);
+        DisableCanvasGroupInstant(leaderboardUICG);
     }
 
     private void SetupButtonListeners()
@@ -146,6 +157,34 @@ public class UIManager : MonoBehaviour
     public void StoreToMenu() { SetCanvasGroupInActive(storeUICG); SetCanvasGroupActive(menuUICG); PlayClickSound(); }
     public void StoreToSolStore() { SetCanvasGroupInActive(storeUICG); SetCanvasGroupActive(solStoreUICG); PlayClickSound(); }
     public void SolStoreToStore() { SetCanvasGroupInActive(solStoreUICG); SetCanvasGroupActive(storeUICG); PlayClickSound(); }
+    public void MenuToLeaderboard() { SetCanvasGroupInActive(menuUICG); SetCanvasGroupActive(leaderboardUICG); PlayClickSound(); }
+    public void LeaderboardToMenu() { SetCanvasGroupInActive(leaderboardUICG); SetCanvasGroupActive(menuUICG); PlayClickSound(); }
+
+    // FIXED: These were swapped! MenuToLeaderboard should OPEN the leaderboard, not close it
+    /*public void MenuToLeaderboard() 
+    { 
+        SetCanvasGroupInActive(menuUICG); 
+        SetCanvasGroupActive(leaderboardUICG); 
+        PlayClickSound();
+        
+        // Call RefreshLeaderboard to load the data
+        LeaderboardDisplay leaderboardDisplay = FindAnyObjectByType<LeaderboardDisplay>();
+        if (leaderboardDisplay != null)
+        {
+            leaderboardDisplay.RefreshLeaderboard();
+        }
+        else
+        {
+            Debug.LogError("[UIManager] LeaderboardDisplay component not found in scene!");
+        }
+    }
+    
+    public void LeaderboardToMenu() 
+    { 
+        SetCanvasGroupInActive(leaderboardUICG); 
+        SetCanvasGroupActive(menuUICG); 
+        PlayClickSound(); 
+    }*/
 
     public IEnumerator ShowLoadingUI(CanvasGroup targetUI)
     {
@@ -199,9 +238,10 @@ public class UIManager : MonoBehaviour
         tUI.DOKill(); 
         tUI.interactable = false;
         tUI.blocksRaycasts = false;
-        tUI.DOFade(0, fadeDuration)
-            .SetUpdate(true) 
-            .OnComplete(() => { tUI.gameObject.SetActive(false); });
+        
+        // [NEW FIX] Disable the GameObject IMMEDIATELY so OnEnable/OnDisable work correctly
+        // We'll keep it visually visible during the fade by setting alpha first
+        tUI.gameObject.SetActive(false);
     }
 
     private void EnableCanvasGroupInstant(CanvasGroup tUI)

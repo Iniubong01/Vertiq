@@ -6,6 +6,13 @@ using System.Collections;
 [RequireComponent(typeof(PlayerInput))]
 public class Player : MonoBehaviour
 {
+    public enum PlayerType
+    {
+        Regular,
+        StaticHead,
+        AnimatedHead
+    }
+
     private Rigidbody2D rb;
     private PlayerInput playerInput; 
 
@@ -26,6 +33,7 @@ public class Player : MonoBehaviour
 
     [Header("Shooting Settings")]
     [SerializeField] private Bullet bulletPrefab;
+    [SerializeField] private GameObject bulletSpawnPoint;
     [Range(1, 10)] [SerializeField] public int powerLevel = 1;
     [SerializeField] private float spreadAngle = 10f;
     [SerializeField] private float fireRate = 0.15f; 
@@ -42,6 +50,17 @@ public class Player : MonoBehaviour
     
     public static bool canShoot = true;
 
+    [Header("Animation Settings")]
+    public PlayerType playerType;
+    [SerializeField] private SpriteRenderer playerSprite;
+    [SerializeField] private Sprite left;
+    [SerializeField] private Sprite right;
+    [SerializeField] private Animator playerAnim;
+    
+    [SerializeField] private GameObject shield, bullet;
+    public int bulletUpgradeValue;
+
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -53,10 +72,20 @@ public class Player : MonoBehaviour
         
         // Initialize drag immediately
         rb.linearDamping = normalDrag;
+
+        if (playerAnim == null)
+        {
+            Debug.LogWarning("Animator component not found, initiating skip!");
+        }
     }
 
     private void Start()
     {
+        Debug.Log($"[Player] Start() called - Time.timeScale: {Time.timeScale}");
+        Debug.Log($"[Player] GameObject active: {gameObject.activeInHierarchy}");
+        Debug.Log($"[Player] PlayerInput component: {(playerInput != null ? "Found" : "MISSING")}");
+        Debug.Log($"[Player] Rigidbody2D component: {(rb != null ? "Found" : "MISSING")}");
+
         GameObject[] boundaries = GameObject.FindGameObjectsWithTag("Boundary");
         audioSource = GetComponent<AudioSource>();
 
@@ -78,6 +107,7 @@ public class Player : MonoBehaviour
 
     private void FixedUpdate()
     {
+
         // Apply drag based on braking state
         if (isBraking)
             rb.linearDamping = brakeDrag;
@@ -97,13 +127,54 @@ public class Player : MonoBehaviour
         }
 
         if (screenWrapping) ScreenWrap();
+
+        // LOGIC FOR ANIMATED HEAD PLAYER
+        if (playerType != PlayerType.AnimatedHead) return;
+
+        // --- Animated Head Sprite Switching ---
+        if (moveInput.x < -0.01f)
+        {
+            if (playerAnim != null && playerAnim.enabled)
+                playerAnim.enabled = false;
+
+            if (playerSprite != null)
+                playerSprite.sprite = left;
+        }
+        else if (moveInput.x > 0.01f)
+        {
+            if (playerAnim != null && playerAnim.enabled)
+                playerAnim.enabled = false;
+
+            if (playerSprite != null)
+                playerSprite.sprite = right;
+        }
+        else
+        {
+            // No horizontal movement → re-enable animator
+            if (playerAnim != null && !playerAnim.enabled)
+                playerAnim.enabled = true;
+        }
+        // END OF LOGIC FOR ANIMATED HEAD PLAYER
+        
     }
 
-    // ... (Rest of your Input Callbacks and Collision code remains the same) ...
+    public void OnMove(InputValue value)
+    {
+        moveInput = value.Get<Vector2>();
+        //Debug.Log($"[Player] OnMove called: {moveInput}");
+    }
 
-    public void OnMove(InputValue value) => moveInput = value.Get<Vector2>();
-    public void OnLook(InputValue value) => lookInput = value.Get<Vector2>();
-    public void OnBrake(InputValue value) => isBraking = value.isPressed;
+    public void OnLook(InputValue value)
+    {
+        lookInput = value.Get<Vector2>();
+        //Debug.Log($"[Player] OnLook called: {lookInput}");
+    }
+
+    public void OnBrake(InputValue value)
+    {
+        isBraking = value.isPressed;
+        //Debug.Log($"[Player] OnBrake: {isBraking}");
+    }
 
     public void OnActivatePowerup(InputValue value)
     {
@@ -125,7 +196,6 @@ public class Player : MonoBehaviour
 
     private void HandleShooting()
     {
-
 
         float triggerValue = playerInput.actions["Fire"].ReadValue<float>();
 
@@ -154,7 +224,6 @@ public class Player : MonoBehaviour
 
     public void Shoot()
     {
-        
         int bulletCount = Mathf.Clamp(powerLevel, 1, 10);
         float totalSpread = (bulletCount - 1) * spreadAngle;
 
@@ -162,11 +231,14 @@ public class Player : MonoBehaviour
         {
             float angleOffset = -totalSpread / 2f + i * spreadAngle;
             Quaternion rotation = transform.rotation * Quaternion.Euler(0, 0, angleOffset);
-            Bullet bullet = Instantiate(bulletPrefab, transform.position, rotation);
-            bullet.Shoot(rotation * Vector2.up);
+
+            // Get from pool using this player's specific bullet prefab
+            Bullet bullet = BulletPool.Instance.Get(bulletPrefab);
+            bullet.transform.SetPositionAndRotation(bulletSpawnPoint.transform.position, rotation);
+            bullet.Shoot(rotation * Vector2.up, bulletPrefab);
         }
-        
-        if(audioSource && shootClip) audioSource.PlayOneShot(shootClip);
+
+        if (audioSource && shootClip) audioSource.PlayOneShot(shootClip);
     }
 
     private void OnEnable()
@@ -209,4 +281,12 @@ public class Player : MonoBehaviour
 
     public void enableShooting() => canShoot = true;
     public void preventShooting() => canShoot = false;
+
+    #region Powerup Visual Helpers
+    // Unique Powerup visual helpers
+    public void SetBulletVisualActive() => bullet.SetActive(true);
+    public void SetBulletVisualInActive() => bullet.SetActive(false);
+    public void SetShieldVisualActive() => shield.SetActive(true);
+    public void SetShieldVisualInActive() => shield.SetActive(false);
+    #endregion
 }

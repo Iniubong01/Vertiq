@@ -49,13 +49,15 @@ public class NotificationPopup : MonoBehaviour
         currentTween = canvasGroup.DOFade(1, fadeDuration).OnComplete(() =>
         {
             // Wait, then Fade Out
-            // We assign this to 'currentTween' so CloseNotification can kill it specifically
             currentTween = canvasGroup.DOFade(0, fadeDuration)
                 .SetDelay(displayDuration)
                 .OnComplete(() => 
                 {
                     canvasGroup.blocksRaycasts = false;
                     canvasGroup.interactable = false;
+                    // Restore gamepad/keyboard focus to whichever panel is active.
+                    // The popup steals EventSystem focus while visible; this hands it back.
+                    UISelectionKeeper.Current?.TakeoverFocus();
                 });
         });
     }
@@ -74,8 +76,12 @@ public class NotificationPopup : MonoBehaviour
             canvasGroup.blocksRaycasts = false;
             canvasGroup.interactable = false;
 
-            // 3. Fade out fast (optional: faster than normal fade)
-            canvasGroup.DOFade(0, 0.2f);
+            // 3. Fade out fast
+            canvasGroup.DOFade(0, 0.2f).OnComplete(() =>
+            {
+                // Restore gamepad/keyboard focus after manual close too
+                UISelectionKeeper.Current?.TakeoverFocus();
+            });
         }
     }
 }

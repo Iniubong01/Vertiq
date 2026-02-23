@@ -8,6 +8,12 @@ public class PowerUpManager : MonoBehaviour
 {
     public static PowerUpManager Instance;
 
+    /// <summary>
+    /// Fires true when freeze starts, false when it ends.
+    /// Asteroid.cs subscribes to this instead of polling per frame — zero Update() cost.
+    /// </summary>
+    public static event System.Action<bool> OnFreezeChanged;
+
     [Header("Game State")]
     public bool shieldActive;
     private bool multipleBulletsActive;
@@ -23,7 +29,6 @@ public class PowerUpManager : MonoBehaviour
 
     [SerializeField] private float powerUpDuration;
     private Player player;
-    public GameObject shield, bullets;
 
     [Header("UI Buttons")]
     [SerializeField] Button SButton;      
@@ -38,6 +43,8 @@ public class PowerUpManager : MonoBehaviour
     [SerializeField] TextMeshProUGUI S_AmountText, FT_AmountText, MB_AmountText, FL_AmountText; 
 
     private int currentSelectionIndex = 0;
+    private float lastNavigationTime = 0f;
+    private const float NAVIGATION_COOLDOWN = 0.25f; // 250ms between navigation inputs
 
     // Track active Coroutines to prevent overlaps
     private Coroutine shieldCoroutine;
@@ -118,9 +125,43 @@ public class PowerUpManager : MonoBehaviour
 
     public void Navigate(int direction)
     {
-        currentSelectionIndex += direction;
-        if (currentSelectionIndex >= powerUpButtons.Count) currentSelectionIndex = 0;
-        else if (currentSelectionIndex < 0) currentSelectionIndex = powerUpButtons.Count - 1;
+        if (isGamePaused) return; // Don't navigate while paused
+        
+        // Cooldown check to prevent rapid navigation
+        if (Time.unscaledTime - lastNavigationTime < NAVIGATION_COOLDOWN)
+        {
+            return; // Ignore this navigation input - too soon
+        }
+        
+        lastNavigationTime = Time.unscaledTime;
+        
+        int startIndex = currentSelectionIndex;
+        int attempts = 0;
+        int maxAttempts = powerUpButtons.Count; // Prevent infinite loop
+        
+        do
+        {
+            currentSelectionIndex += direction;
+            
+            // Wrap around
+            if (currentSelectionIndex >= powerUpButtons.Count) 
+                currentSelectionIndex = 0;
+            else if (currentSelectionIndex < 0) 
+                currentSelectionIndex = powerUpButtons.Count - 1;
+            
+            attempts++;
+            
+            // If we've checked all buttons and wrapped back to start, stop
+            if (attempts > maxAttempts)
+            {
+                //Debug.LogWarning("[PowerUpManager] All power-ups are disabled!");
+                currentSelectionIndex = startIndex; // Stay on current selection
+                break;
+            }
+            
+        } while (!powerUpButtons[currentSelectionIndex].interactable);
+        
+        //Debug.Log($"[PowerUpManager] Navigated to powerup index: {currentSelectionIndex} ({powerUpButtons[currentSelectionIndex].name})");
         UpdateSelectionVisuals();
     }
 
@@ -128,10 +169,28 @@ public class PowerUpManager : MonoBehaviour
 
     public void TriggerSelectedPowerUp()
     {
-        if (isGamePaused) return;
-        if (powerUpButtons[currentSelectionIndex].interactable)
+        if (isGamePaused) 
         {
-            powerUpButtons[currentSelectionIndex].onClick.Invoke();
+            //Debug.Log("[PowerUpManager] Cannot trigger powerup - game is paused");
+            return;
+        }
+        
+        if (currentSelectionIndex < 0 || currentSelectionIndex >= powerUpButtons.Count)
+        {
+            //Debug.LogWarning($"[PowerUpManager] Invalid selection index: {currentSelectionIndex}");
+            return;
+        }
+        
+        Button selectedButton = powerUpButtons[currentSelectionIndex];
+        
+        if (selectedButton.interactable)
+        {
+            //Debug.Log($"[PowerUpManager] Triggering powerup: {selectedButton.name}");
+            selectedButton.onClick.Invoke();
+        }
+        else
+        {
+            //Debug.LogWarning($"[PowerUpManager] Selected powerup is not interactable: {selectedButton.name}");
         }
     }
 
@@ -139,8 +198,26 @@ public class PowerUpManager : MonoBehaviour
     {
         for (int i = 0; i < powerUpButtons.Count; i++)
         {
-            if (i == currentSelectionIndex) powerUpButtons[i].transform.localScale = Vector3.one * 1.3f;
-            else powerUpButtons[i].transform.localScale = Vector3.one;
+            if (i == currentSelectionIndex)
+            {
+                // Selected button - scale up and highlight
+                powerUpButtons[i].transform.localScale = Vector3.one * 1.3f;
+                
+                // Optional: Change color to indicate selection
+                /*var colors = powerUpButtons[i].colors;
+                colors.normalColor = new Color(1f, 1f, 0.5f, 1f); // Yellow tint
+                powerUpButtons[i].colors = colors;*/
+            }
+            else
+            {
+                // Not selected - normal scale and color
+                powerUpButtons[i].transform.localScale = Vector3.one;
+                
+                // Reset to default color
+                var colors = powerUpButtons[i].colors;
+                colors.normalColor = Color.white;
+                powerUpButtons[i].colors = colors;
+            }
         }
     }
 
@@ -162,8 +239,10 @@ public class PowerUpManager : MonoBehaviour
         {
             if(player != null) originalPowerLevel = player.powerLevel;
             multipleBulletsActive = true;
-            if(player != null) player.powerLevel = 4;
-            bullets.SetActive(true);
+            if(player != null) player.powerLevel = 4 + player.bulletUpgradeValue;
+            //? Todo: Fix this using player.cs
+            // bullets.SetActive(true);
+            player.SetBulletVisualActive();
         }
 
         // Restart timer
@@ -176,7 +255,9 @@ public class PowerUpManager : MonoBehaviour
         
         // Restore
         if(player != null) player.powerLevel = originalPowerLevel;
-        bullets.SetActive(false);
+        //? Todo: Fix this using player.cs
+        // bullets.SetActive(false);
+        player.SetBulletVisualInActive();
         multipleBulletsActive = false;
         mbCoroutine = null;
     }
@@ -194,7 +275,9 @@ public class PowerUpManager : MonoBehaviour
         if (!shieldActive)
         {
             shieldActive = true;
-            shield.SetActive(true);
+            //? Todo: Fix this using player.cs
+            // shield.SetActive(true);
+            player.SetShieldVisualActive();
         }
 
         shieldCoroutine = StartCoroutine(ResetShield(powerUpDuration));
@@ -204,7 +287,9 @@ public class PowerUpManager : MonoBehaviour
     {
         yield return new WaitForSeconds(duration);
         shieldActive = false;
-        shield.SetActive(false);
+        //? Todo: Fix this using player.cs
+        // shield.SetActive(false);
+        player.SetShieldVisualInActive();
         shieldCoroutine = null;
     }
 
@@ -219,6 +304,7 @@ public class PowerUpManager : MonoBehaviour
         if (freezeCoroutine != null) StopCoroutine(freezeCoroutine);
         
         freezeTimeActive = true;
+        OnFreezeChanged?.Invoke(true);
         freezeCoroutine = StartCoroutine(ResetFreezeTime(powerUpDuration));
     }
 
@@ -226,6 +312,7 @@ public class PowerUpManager : MonoBehaviour
     {
         yield return new WaitForSeconds(duration);
         freezeTimeActive = false;
+        OnFreezeChanged?.Invoke(false);
         freezeCoroutine = null;
     }
 
@@ -279,7 +366,7 @@ public class PowerUpManager : MonoBehaviour
         {
             case PowerUpType.Shield:
                 if (shieldCoroutine != null) StopCoroutine(shieldCoroutine);
-                if (!shieldActive) { shieldActive = true; shield.SetActive(true); }
+                if (!shieldActive) { shieldActive = true; player.SetShieldVisualActive(); }
                 shieldCoroutine = StartCoroutine(ResetShield(duration));
                 break;
 
@@ -289,7 +376,8 @@ public class PowerUpManager : MonoBehaviour
                     if(player != null) originalPowerLevel = player.powerLevel;
                     multipleBulletsActive = true;
                     if(player != null) player.powerLevel = 4;
-                    bullets.SetActive(true);
+                    player.SetBulletVisualActive();
+                    
                 }
                 mbCoroutine = StartCoroutine(ResetMultipleBullets(duration));
                 break;
@@ -297,6 +385,7 @@ public class PowerUpManager : MonoBehaviour
             case PowerUpType.FreezeTime:
                 if (freezeCoroutine != null) StopCoroutine(freezeCoroutine);
                 freezeTimeActive = true;
+                OnFreezeChanged?.Invoke(true);
                 freezeCoroutine = StartCoroutine(ResetFreezeTime(duration));
                 break;
 

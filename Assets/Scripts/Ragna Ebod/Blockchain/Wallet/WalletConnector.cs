@@ -90,6 +90,17 @@ public class WalletConnector : MonoBehaviour
     }
 
     /// <summary>
+    /// Call this from a "Change Username" button to open the panel at any time.
+    /// </summary>
+    public void ShowUsernamePanel()
+    {
+        if (usernameSetupPanel != null)
+            usernameSetupPanel.Show();
+        else
+            Debug.LogWarning("[Wallet] ShowUsernamePanel: usernameSetupPanel is not assigned.");
+    }
+
+    /// <summary>
     /// Call this method to change the checkbox state at runtime (e.g., from a settings menu)
     /// </summary>
     public void SetAlwaysShowUsernamePanel(bool value)
@@ -151,31 +162,49 @@ public class WalletConnector : MonoBehaviour
 
     private async void OnLoginSuccess(Account account, bool suppressNotification)
     {
-        PlayerAccount = account;
-        UserPublicKey = account.PublicKey;
-        
-        PlayerPrefs.SetInt(AUTO_CONNECT_KEY, 1);
-        PlayerPrefs.Save();
-
-        UpdateConnectedUI(account.PublicKey.ToString());
-        
-        if (!suppressNotification) 
-            notificationPopup?.Show("Success!", "Wallet Connected", Color.green);
-
-        if (DualLeaderboardManager.Instance != null)
+        try
         {
-            // Wrap Login in try-catch so an error here doesn't kill the Username check logic
-            try 
-            {
-                await DualLeaderboardManager.Instance.LoginToUnity(account.PublicKey.ToString());
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[Wallet] Unity Login Error: {ex.Message}");
-            }
+            PlayerAccount = account;
+            UserPublicKey = account.PublicKey;
+            
+            PlayerPrefs.SetInt(AUTO_CONNECT_KEY, 1);
+            PlayerPrefs.Save();
 
-            // Check username logic immediately after login attempt
-            CheckAndPromptUsername();
+            UpdateConnectedUI(account.PublicKey.ToString());
+            
+            if (!suppressNotification) 
+                notificationPopup?.Show("Success!", "Wallet Connected", Color.green);
+
+            if (DualLeaderboardManager.Instance != null)
+            {
+                // Wrap Login in try-catch so an error here doesn't kill the Username check logic
+                try 
+                {
+                    await DualLeaderboardManager.Instance.LoginToUnity(account.PublicKey.ToString());
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[Wallet] Unity Login Error: {ex.Message}");
+                    if (!suppressNotification)
+                        notificationPopup?.Show("Warning", "Wallet connected but leaderboard login failed.", Color.yellow);
+                }
+
+                // Check username logic immediately after login attempt
+                CheckAndPromptUsername();
+            }
+            else
+            {
+                Debug.LogWarning("[Wallet] DualLeaderboardManager not found - skipping leaderboard login");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Catch any unhandled exceptions to prevent crashes
+            Debug.LogWarning($"[Wallet] Critical error in OnLoginSuccess: {ex.Message}");
+            Debug.LogWarning($"[Wallet] Stack trace: {ex.StackTrace}");
+            
+            if (!suppressNotification)
+                notificationPopup?.Show("Error", "Wallet connection completed with errors.", Color.red);
         }
     }
 
@@ -204,27 +233,45 @@ public class WalletConnector : MonoBehaviour
         }
 
         // If no local username, check Unity Authentication
-        if (AuthenticationService.Instance.IsSignedIn)
+        try
         {
-            string currentName = AuthenticationService.Instance.PlayerName;
-            
-            // Invalid if empty OR contains '#' (default names are like Player#1234)
-            bool isInvalidName = string.IsNullOrEmpty(currentName) || currentName.Contains("#");
-
-            if (isInvalidName)
+            if (AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn)
             {
-                Debug.Log($"[Wallet] Opening Panel: No valid username found (Unity name: '{currentName}').");
-                _pendingUsernamePrompt = true;
-                AttemptShowUsernamePanel();
+                string currentName = AuthenticationService.Instance.PlayerName;
+                
+                // Invalid if empty OR contains '#' (default names are like Player#1234)
+                bool isInvalidName = string.IsNullOrEmpty(currentName) || currentName.Contains("#");
+
+                if (isInvalidName)
+                {
+                    Debug.Log($"[Wallet] Opening Panel: No valid username found (Unity name: '{currentName}').");
+                    _pendingUsernamePrompt = true;
+                    AttemptShowUsernamePanel();
+                }
+                else
+                {
+                    Debug.Log($"[Wallet] Panel Skipped: Valid Unity username exists: '{currentName}'");
+                }
             }
             else
             {
-                Debug.Log($"[Wallet] Panel Skipped: Valid Unity username exists: '{currentName}'");
+                // Not signed in (e.g. services still initializing on first launch).
+                // If there's no local username either, this is a brand-new user — show the panel.
+                if (string.IsNullOrEmpty(cachedUsername))
+                {
+                    Debug.Log("[Wallet] Opening Panel: Not signed in and no local username — first-time user.");
+                    _pendingUsernamePrompt = true;
+                    AttemptShowUsernamePanel();
+                }
+                else
+                {
+                    Debug.LogWarning("[Wallet] Not signed in, but local username exists — skipping panel.");
+                }
             }
         }
-        else
+        catch (Exception ex)
         {
-            Debug.LogWarning("[Wallet] Panel Skipped: User NOT Signed into Unity Services.");
+            Debug.LogWarning($"[Wallet] Error checking username: {ex.Message}");
         }
     }
 

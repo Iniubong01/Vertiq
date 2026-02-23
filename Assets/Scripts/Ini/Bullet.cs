@@ -8,25 +8,43 @@ public class Bullet : MonoBehaviour
     public float speed = 500f;
     public float maxLifetime = 10f;
 
+    private float lifetimeTimer;
+    
+    // Reference to the prefab this bullet was created from (for pool tracking)
+    [HideInInspector] public Bullet prefabReference;
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
     }
 
-    public void Shoot(Vector2 direction)
+    // Called by the pool when this bullet is retrieved
+    private void OnEnable()
     {
-        // The bullet only needs a force to be added once since they have no
-        // drag to make them stop moving
-        rb.AddForce(direction * speed);
+        lifetimeTimer = maxLifetime;
+        rb.linearVelocity = Vector2.zero;
+    }
 
-        // Destroy the bullet after it reaches it max lifetime
-        Destroy(gameObject, maxLifetime);
+    public void Shoot(Vector2 direction, Bullet prefab)
+    {
+        prefabReference = prefab;
+        rb.AddForce(direction * speed);
+    }
+
+    private void Update()
+    {
+        lifetimeTimer -= Time.deltaTime;
+        if (lifetimeTimer <= 0f)
+            ReturnToPool();
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        // Destroy the bullet as soon as it collides with anything
-        Destroy(gameObject);
+        ReturnToPool();
     }
 
+    private void ReturnToPool()
+    {
+        BulletPool.Instance.Release(this);
+    }
 }
