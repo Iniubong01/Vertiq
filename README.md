@@ -1,4 +1,4 @@
-# Vertiq 🚀
+# Vortiq 🚀
 
 > **A Web3 arcade shooter built on Solana** — destroy asteroids, earn rewards, and trade tokens without leaving the game.
 
@@ -8,7 +8,7 @@
 
 ## 🎮 Game Overview
 
-Vertiq is a fast-paced asteroid shooter with progressive difficulty. Destroy incoming asteroids to score points, survive as long as possible, and compete on the global leaderboard — all linked to your Solana wallet.
+Vortiq is a fast-paced asteroid shooter with progressive difficulty. Destroy incoming asteroids to score points, survive as long as possible, and compete on the global leaderboard — all linked to your Solana wallet.
 
 ### Gameplay
 
@@ -38,7 +38,7 @@ Power-ups are purchased from the in-game shop using SOL or `$PLAY` tokens and ac
 
 Players connect their Solana wallet to authenticate and access all Web3 features.
 
-- **Mobile**: Connected via the [MagicBlock](https://magicblock.gg) SDK — supports Phantom, Backpack, and other mobile wallets
+- **Mobile**: Connected via the [MagicBlock](https://magicblock.gg) SDK — supports Phantom, Jupiter, and other mobile wallets
 - **Editor / Desktop**: Solana Unity SDK keypair (BIP39 mnemonic)
 - Wallet address is displayed in-game and can be copied to clipboard
 - Username linked to wallet address, stored via Unity Authentication
@@ -75,20 +75,7 @@ A full token swap UI is embedded in the game, powered by the [Jupiter Aggregator
 
 ---
 
-### 4. MagicBlock Ephemeral Rollups (On-Chain Randomness)
-
-Vertiq integrates [MagicBlock's Ephemeral Rollups](https://magicblock.gg) to request and consume verifiable on-chain randomness — enabling provably fair game mechanics.
-
-- Connects to both Solana mainnet (`L1`) and the MagicBlock rollup network simultaneously
-- Initializes a `RandomnessState` account on-chain per player
-- Sends low-latency transactions to the rollup (`Commitment.Processed`) for fast results
-- Consumes randomness results back on L1 (`Commitment.Confirmed`)
-
-**Scripts**: `MagicRollupManager.cs`, `VortiqProgram.cs`
-
----
-
-### 5. Leaderboard System
+### 4. Leaderboard System
 
 Scores are submitted to the Unity Services cloud leaderboard:
 
@@ -110,7 +97,6 @@ Scores are submitted to the Unity Services cloud leaderboard:
 | Wallet SDK | [Solana Unity SDK](https://github.com/magicblock-labs/Solana.Unity-SDK) |
 | Mobile Wallet | [MagicBlock](https://magicblock.gg) SDK |
 | DEX | [Jupiter Aggregator v6](https://jup.ag) |
-| Rollups | [MagicBlock Ephemeral Rollups](https://magicblock.gg) |
 | Cloud Services | Unity Gaming Services (Auth + Leaderboards) |
 | Tweening | DOTween |
 | Platform | Android, WebGL |
