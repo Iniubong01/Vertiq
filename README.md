@@ -66,7 +66,7 @@ A full token swap UI is embedded in the game, powered by the [Jupiter Aggregator
 
 - Minimum swap amount: **0.003 SOL**
 - Live price quotes fetched from Jupiter's API with retry logic
-- Supports SOL and SPL tokens (PLAY)
+- Supports SOL and SPL tokens (`$PLAY`)
 - Displays price impact, fees, and route information before confirming
 - Executes swap and signs the transaction from within the game
 - Real-time balance display for all supported tokens
