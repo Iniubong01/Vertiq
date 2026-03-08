@@ -35,9 +35,20 @@ public class GameManager : MonoBehaviour
     // Runtime tracking
     private float currentTime = 0f;
     private int bestScore = 0;
-    private float bestTime = 99999f;  // Large default start
+    private float bestTime = 0f;  // Longest survival time (0 = no record yet)
     [HideInInspector] public bool playerDead;
     [SerializeField] Button shootButton;
+
+    // PERFORMANCE: Track last displayed second so we only update timer text when
+    // the value changes — avoids a string allocation + TextMeshPro re-render every frame.
+    private int _lastDisplayedSecond = -1;
+
+    // PERFORMANCE: Cache shootButton interactable state to avoid per-frame Canvas rebuilds.
+    private bool _cachedShootInteractable = true;
+
+    // PERFORMANCE: Reusable yield instruction for FadeInGameOver — eliminates one
+    // heap allocation per player death.
+    private static readonly WaitForEndOfFrame _waitEOF = new WaitForEndOfFrame();
 
     [Header("Blockchain")]
     [SerializeField] private GameStatsSubmitter statsSubmitter;
@@ -74,10 +85,10 @@ public class GameManager : MonoBehaviour
 
         // Load saved stats
         bestScore = PlayerPrefs.GetInt("BestScore", 0);
-        bestTime = PlayerPrefs.GetFloat("BestTime", 99999f);
+        bestTime = PlayerPrefs.GetFloat("BestTime", 0f); // 0 = no record yet (longest-survival tracking)
 
         bestScoreText.text = bestScore.ToString();
-        BestTimeText.text = FormatTime(bestTime);
+        BestTimeText.text = (bestTime > 0f) ? FormatTime(bestTime) : "--:--";
 
         // --- AUTOMATICALLY GET CANVAS GROUP ---
         if (gameOverUI != null)
@@ -103,8 +114,18 @@ public class GameManager : MonoBehaviour
         if (lives > 0)
         {
             currentTime += Time.deltaTime;
-            timerText.text = FormatTime(currentTime);
-            timeText.text = FormatTime(currentTime);
+
+            // PERFORMANCE: Only reformat and assign text when the displayed second changes.
+            // FormatTime uses string interpolation — calling it every frame allocates a new
+            // string each time and triggers a TextMeshPro re-render. Now it only runs ~once/sec.
+            int currentSecond = Mathf.FloorToInt(currentTime);
+            if (currentSecond != _lastDisplayedSecond)
+            {
+                _lastDisplayedSecond = currentSecond;
+                string formatted = FormatTime(currentTime);
+                timerText.text = formatted;
+                timeText.text  = formatted;
+            }
         }
 
         // --- FIX FOR NEW INPUT SYSTEM ---
@@ -114,15 +135,22 @@ public class GameManager : MonoBehaviour
             NewGame();
         }
 
-        shootButton.interactable = (!playerDead);
+        // PERFORMANCE: Only set interactable when it actually changes.
+        // Unconditional assignment triggers a Canvas rebuild every frame (60x/sec).
+        bool shouldBeInteractable = !playerDead;
+        if (_cachedShootInteractable != shouldBeInteractable)
+        {
+            _cachedShootInteractable = shouldBeInteractable;
+            shootButton.interactable = shouldBeInteractable;
+        }
     }
 
     private void NewGame()
     {
-        // Clear asteroids
-        Asteroid[] asteroids = FindObjectsOfType<Asteroid>();
-        for (int i = 0; i < asteroids.Length; i++)
-            Destroy(asteroids[i].gameObject);
+        // PERFORMANCE: Return all active asteroids to the pool cleanly.
+        // Previously used FindObjectsOfType<Asteroid>() (slow, full scene scan) + Destroy()
+        // (broke the pool, forced re-instantiation, caused GC spikes on every new game).
+        AsteroidPool.Instance.ReleaseAll();
 
         gameOverUI.SetActive(false);
 
@@ -134,6 +162,7 @@ public class GameManager : MonoBehaviour
             gameOverCanvasGroup.alpha = 0f;
 
         currentTime = 0f;
+        _lastDisplayedSecond = -1;
         timerText.text = "0:00";
 
         playerDead = false;
@@ -155,15 +184,6 @@ public class GameManager : MonoBehaviour
             bestScore = score;
             bestScoreText.text = bestScore.ToString();
             PlayerPrefs.SetInt("BestScore", bestScore);
-
-            // Best time only updates if this score beats previous highscore
-            if (currentTime < bestTime)
-            {
-                bestTime = currentTime;
-                BestTimeText.text = FormatTime(bestTime);
-                PlayerPrefs.SetFloat("BestTime", bestTime);
-            }
-
             PlayerPrefs.Save();
         }
     }
@@ -224,6 +244,17 @@ public class GameManager : MonoBehaviour
 
         if (lives <= 0)
         {
+            // BEST TIME: Track longest survival regardless of score.
+            // Previously this was inside SetScore (only saved when beating high score),
+            // so dying with a lower score never recorded the time at all.
+            if (currentTime > bestTime)
+            {
+                bestTime = currentTime;
+                BestTimeText.text = FormatTime(bestTime);
+                PlayerPrefs.SetFloat("BestTime", bestTime);
+                PlayerPrefs.Save();
+            }
+
             gameOverUI.SetActive(true);
             powerUpButtons.SetActive(false);
             
@@ -271,7 +302,7 @@ public class GameManager : MonoBehaviour
         {
             elapsedTime += Time.deltaTime;
             gameOverCanvasGroup.alpha = Mathf.Clamp01(elapsedTime / duration);
-            yield return null;
+            yield return _waitEOF; // reuse cached object — no allocation per frame
         }
 
         gameOverCanvasGroup.alpha = 1f; // Ensure it ends fully visible

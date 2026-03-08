@@ -46,6 +46,13 @@ public class PowerUpManager : MonoBehaviour
     private float lastNavigationTime = 0f;
     private const float NAVIGATION_COOLDOWN = 0.25f; // 250ms between navigation inputs
 
+    // Cached interactable states — avoids setting Button.interactable every frame,
+    // which triggers a Canvas rebuild (very expensive)
+    private bool _cachedSInteractable = true;
+    private bool _cachedFTInteractable = true;
+    private bool _cachedMBInteractable = true;
+    private bool _cachedFLInteractable = true;
+
     // Track active Coroutines to prevent overlaps
     private Coroutine shieldCoroutine;
     private Coroutine mbCoroutine;
@@ -57,6 +64,11 @@ public class PowerUpManager : MonoBehaviour
 
     // FIX: Track if a power-up button was just clicked to prevent pause conflicts
     private bool powerUpJustActivated = false;
+
+    // PERFORMANCE: Cached yield instruction — reused on every power-up activation
+    // instead of allocating a new WaitForEndOfFrame each time.
+    private static readonly WaitForEndOfFrame _waitEOF = new WaitForEndOfFrame();
+    private static readonly WaitForSeconds _buttonCooldownWFS = new WaitForSeconds(0.1f);
 
     private void Awake()
     {
@@ -93,8 +105,8 @@ public class PowerUpManager : MonoBehaviour
     private IEnumerator ClearPowerUpActivationFlag()
     {
         // Wait a frame to ensure button click is fully processed
-        yield return new WaitForEndOfFrame();
-        yield return new WaitForSeconds(0.1f); // Small delay to prevent any race conditions
+        yield return _waitEOF;
+        yield return _buttonCooldownWFS; // Small delay to prevent any race conditions
         powerUpJustActivated = false;
     }
 
@@ -108,19 +120,21 @@ public class PowerUpManager : MonoBehaviour
 
     private void Update()
     {
-        // [FIXED LOGIC]
-        // Button is interactable ONLY if:
-        // 1. Game is NOT paused
-        // 2. You have stock (> 0)
-        // 3. The powerup is NOT currently active (!isActive)
-        
-        SButton.interactable = !isGamePaused && ShopData.Instance.powerupShield > 0 && !shieldActive;
-        
-        FTButton.interactable = !isGamePaused && ShopData.Instance.powerupFreezeTime > 0 && !freezeTimeActive;
-        
-        MBButton.interactable = !isGamePaused && ShopData.Instance.powerupMultipleBullets > 0 && !multipleBulletsActive;
-        
-        FLButton.interactable = !isGamePaused && ShopData.Instance.powerupFullLives > 0 && !fullLives;
+        // PERFORMANCE: Only set Button.interactable when the value actually changes.
+        // Setting it unconditionally every frame triggers a Canvas rebuild every frame,
+        // which is a major draw-call spike. We cache the last known state and skip the
+        // assignment when nothing has changed.
+        SetInteractableIfChanged(SButton,  ref _cachedSInteractable,  !isGamePaused && ShopData.Instance.powerupShield > 0 && !shieldActive);
+        SetInteractableIfChanged(FTButton, ref _cachedFTInteractable, !isGamePaused && ShopData.Instance.powerupFreezeTime > 0 && !freezeTimeActive);
+        SetInteractableIfChanged(MBButton, ref _cachedMBInteractable, !isGamePaused && ShopData.Instance.powerupMultipleBullets > 0 && !multipleBulletsActive);
+        SetInteractableIfChanged(FLButton, ref _cachedFLInteractable, !isGamePaused && ShopData.Instance.powerupFullLives > 0 && !fullLives);
+    }
+
+    private static void SetInteractableIfChanged(Button button, ref bool cached, bool newValue)
+    {
+        if (cached == newValue) return;
+        cached = newValue;
+        button.interactable = newValue;
     }
 
     public void Navigate(int direction)

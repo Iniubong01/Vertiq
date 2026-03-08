@@ -1,5 +1,6 @@
 ﻿using DG.Tweening;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(SpriteRenderer))]
@@ -35,6 +36,12 @@ public class Asteroid : MonoBehaviour
 
     private Coroutine lifetimeCoroutine;
     private bool isDying = false;
+
+    // PERFORMANCE: Cached WaitForSeconds per maxLifetime value — shared across all
+    // asteroids with the same lifetime. Avoids a heap allocation on every pool activation.
+    private static readonly Dictionary<float, WaitForSeconds> _wfsCache =
+        new Dictionary<float, WaitForSeconds>();
+    private WaitForSeconds _lifetimeWFS;
 
     private void Awake()
     {
@@ -123,7 +130,17 @@ public class Asteroid : MonoBehaviour
         transform.localScale = Vector3.one * size;
         rb.mass = size;
 
-        // 3. Start lifetime timer (replaces Destroy(gameObject, maxLifetime))
+        // 3. Retrieve (or create once) the cached WaitForSeconds for this asteroid's lifetime.
+        if (_lifetimeWFS == null)
+        {
+            if (!_wfsCache.TryGetValue(maxLifetime, out _lifetimeWFS))
+            {
+                _lifetimeWFS = new WaitForSeconds(maxLifetime);
+                _wfsCache[maxLifetime] = _lifetimeWFS;
+            }
+        }
+
+        // 4. Start lifetime timer (replaces Destroy(gameObject, maxLifetime))
         if (lifetimeCoroutine != null) StopCoroutine(lifetimeCoroutine);
         lifetimeCoroutine = StartCoroutine(LifetimeRoutine());
     }
@@ -139,7 +156,7 @@ public class Asteroid : MonoBehaviour
 
     private IEnumerator LifetimeRoutine()
     {
-        yield return new WaitForSeconds(maxLifetime);
+        yield return _lifetimeWFS; // reuse cached object — no heap allocation
         ReturnToPool();
     }
 

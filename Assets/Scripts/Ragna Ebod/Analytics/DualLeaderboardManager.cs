@@ -29,6 +29,12 @@ public class DualLeaderboardManager : MonoBehaviour
 
     private bool _isInitialized = false;
 
+    /// <summary>
+    /// Fired once Unity Services are initialized AND the user is signed in.
+    /// LeaderboardDisplay subscribes to this to auto-refresh on startup.
+    /// </summary>
+    public static event System.Action OnServicesReady;
+
     private async void Start()
     {
         // Auto-find NotificationPopup if not assigned
@@ -46,6 +52,23 @@ public class DualLeaderboardManager : MonoBehaviour
             await UnityServices.InitializeAsync();
             _isInitialized = true;
             Debug.Log("[DualLeaderboardManager] Unity Services initialized successfully.");
+
+            // RACE CONDITION FIX: WalletConnector.OnLoginSuccess() calls LoginToUnity()
+            // very early — before InitializeAsync() completes. The guard at the top of
+            // LoginToUnity() skips it silently. Now that services are ready, retry login
+            // if the wallet is already connected but the user still isn't signed in.
+            if (WalletConnector.UserPublicKey != null &&
+                (AuthenticationService.Instance == null || !AuthenticationService.Instance.IsSignedIn))
+            {
+                Debug.Log("[DualLeaderboardManager] Retrying LoginToUnity after late initialization.");
+                await LoginToUnity(WalletConnector.UserPublicKey.ToString());
+            }
+
+            // Notify any waiting UI (e.g. LeaderboardDisplay) that sign-in is now complete.
+            if (AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn)
+            {
+                OnServicesReady?.Invoke();
+            }
         }
         catch (System.Exception e) 
         { 

@@ -27,6 +27,15 @@ public class AsteroidPool : MonoBehaviour
     // Separate pool per prefab variant (small, medium, large, etc.)
     private Dictionary<Asteroid, ObjectPool<Asteroid>> pools = new Dictionary<Asteroid, ObjectPool<Asteroid>>();
 
+    // PERFORMANCE: Tracks all currently checked-out asteroids.
+    // Allows ReleaseAll() to return them to the pool cleanly without
+    // using the slow FindObjectsOfType<Asteroid>() + Destroy() pattern.
+    private readonly HashSet<Asteroid> _activeAsteroids = new HashSet<Asteroid>();
+
+    // PERFORMANCE: Pre-allocated scratch buffer for ReleaseAll() snapshots.
+    // Reused each call — eliminates the "new Asteroid[n]" allocation on every death / new game.
+    private readonly List<Asteroid> _snapshotBuffer = new List<Asteroid>();
+
     private void Awake()
     {
         if (_instance != null && _instance != this) { Destroy(gameObject); return; }
@@ -100,6 +109,7 @@ public class AsteroidPool : MonoBehaviour
         }
         while (asteroid == null); // Unity's == null returns true for destroyed objects
 
+        _activeAsteroids.Add(asteroid);
         return asteroid;
     }
 
@@ -109,6 +119,8 @@ public class AsteroidPool : MonoBehaviour
     public void Release(Asteroid asteroid)
     {
         if (asteroid == null) return;
+
+        _activeAsteroids.Remove(asteroid);
 
         Asteroid prefabType = asteroid.prefabReference;
 
@@ -121,5 +133,26 @@ public class AsteroidPool : MonoBehaviour
             Debug.LogWarning($"AsteroidPool: Could not find pool for {asteroid.name}, destroying instead.");
             Destroy(asteroid.gameObject);
         }
+    }
+
+    /// <summary>
+    /// Returns ALL currently active asteroids to their pools.
+    /// Call this from GameManager.NewGame() instead of FindObjectsOfType + Destroy.
+    /// Maintains full pool integrity with zero GC allocations.
+    /// </summary>
+    public void ReleaseAll()
+    {
+        // PERFORMANCE: Copy active set into a reusable List (no new array each call).
+        // We can't modify _activeAsteroids while iterating it, so we snapshot first.
+        _snapshotBuffer.Clear();
+        _snapshotBuffer.AddRange(_activeAsteroids);
+
+        foreach (Asteroid asteroid in _snapshotBuffer)
+        {
+            if (asteroid == null) continue;
+            Release(asteroid);
+        }
+
+        _activeAsteroids.Clear();
     }
 }

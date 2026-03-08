@@ -44,7 +44,23 @@ public class LeaderboardDisplay : MonoBehaviour
                 Debug.LogWarning("[LeaderboardDisplay] NotificationPopup not found in scene.");
             }
         }
-    } 
+
+        // Subscribe to the "services ready" event so we can refresh once sign-in
+        // finishes. This resolves the startup race where RefreshLeaderboard() is called
+        // before Unity Services have initialized and the user is signed in.
+        DualLeaderboardManager.OnServicesReady += OnServicesReadyHandler;
+    }
+
+    private void OnDestroy()
+    {
+        DualLeaderboardManager.OnServicesReady -= OnServicesReadyHandler;
+    }
+
+    private void OnServicesReadyHandler()
+    {
+        Debug.Log("[LeaderboardDisplay] Services ready — auto-refreshing leaderboard.");
+        RefreshLeaderboard();
+    }
 
     public async void RefreshLeaderboard()
     {
@@ -58,7 +74,11 @@ public class LeaderboardDisplay : MonoBehaviour
         
         if (!AuthenticationService.Instance.IsSignedIn)
         {
-            Debug.LogWarning("[Leaderboard] User not signed in, cannot fetch leaderboard");
+            // Not signed in yet — subscribe to OnServicesReady so we retry automatically
+            // once DualLeaderboardManager finishes initialization and sign-in.
+            Debug.LogWarning("[Leaderboard] User not signed in — will refresh once services are ready.");
+            DualLeaderboardManager.OnServicesReady -= OnServicesReadyHandler; // avoid double-subscribe
+            DualLeaderboardManager.OnServicesReady += OnServicesReadyHandler;
             return;
         }
 

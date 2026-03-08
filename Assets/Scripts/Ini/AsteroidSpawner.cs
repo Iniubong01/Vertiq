@@ -65,6 +65,13 @@ public class AsteroidSpawner : MonoBehaviour
     {
         elapsedTime += Time.deltaTime;
 
+        // PERFORMANCE: Clamp elapsedTime once fully ramped — prevents unbounded float
+        // growth. Past ~5 min a float loses sub-millisecond precision, making every
+        // Mathf calculation slightly noisier. Once t == 1 the ramp is done; we only
+        // still need elapsedTime to compute amountThisWave, so cap at a safe ceiling.
+        if (elapsedTime > difficultyRampTime * 2f)
+            elapsedTime = difficultyRampTime * 2f;
+
         // Difficulty Math
         float t = Mathf.Clamp01(elapsedTime / difficultyRampTime);
         currentSpawnInterval = Mathf.Lerp(startSpawnInterval, minimumSpawnInterval, t);
@@ -72,7 +79,9 @@ public class AsteroidSpawner : MonoBehaviour
         spawnTimer += Time.deltaTime;
         if (spawnTimer >= currentSpawnInterval)
         {
-            spawnTimer = 0f;
+            // PERFORMANCE: Subtract instead of zeroing — prevents drift that accumulates
+            // when the frame takes slightly longer than the interval.
+            spawnTimer -= currentSpawnInterval;
             int amountThisWave = Mathf.Clamp(
                 baseAmountPerSpawn + Mathf.FloorToInt(elapsedTime * amountRamp),
                 baseAmountPerSpawn,

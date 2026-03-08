@@ -14,7 +14,11 @@ public class Player : MonoBehaviour
     }
 
     private Rigidbody2D rb;
-    private PlayerInput playerInput; 
+    private PlayerInput playerInput;
+
+    // PERFORMANCE: Cache the InputAction reference — avoids a string dictionary
+    // lookup in HandleShooting() which runs every Update() frame (60x/sec).
+    private UnityEngine.InputSystem.InputAction _fireAction;
 
     private Vector2 moveInput; 
     private Vector2 lookInput; 
@@ -66,6 +70,9 @@ public class Player : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         playerInput = GetComponent<PlayerInput>();
 
+        // Cache InputAction reference once — eliminates per-frame string lookup
+        _fireAction = playerInput.actions["Fire"];
+
         rb.gravityScale = 0f;
         rb.angularDamping = 0.1f;
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
@@ -81,10 +88,12 @@ public class Player : MonoBehaviour
 
     private void Start()
     {
+#if UNITY_EDITOR
         Debug.Log($"[Player] Start() called - Time.timeScale: {Time.timeScale}");
         Debug.Log($"[Player] GameObject active: {gameObject.activeInHierarchy}");
         Debug.Log($"[Player] PlayerInput component: {(playerInput != null ? "Found" : "MISSING")}");
         Debug.Log($"[Player] Rigidbody2D component: {(rb != null ? "Found" : "MISSING")}");
+#endif
 
         GameObject[] boundaries = GameObject.FindGameObjectsWithTag("Boundary");
         audioSource = GetComponent<AudioSource>();
@@ -107,12 +116,7 @@ public class Player : MonoBehaviour
 
     private void FixedUpdate()
     {
-
-        // Apply drag based on braking state
-        if (isBraking)
-            rb.linearDamping = brakeDrag;
-        else
-            rb.linearDamping = normalDrag;
+        // Drag is applied in OnBrake() on state change — no need to set it every tick.
 
         // Move Force
         if (moveInput.sqrMagnitude > 0.01f)
@@ -173,6 +177,8 @@ public class Player : MonoBehaviour
     public void OnBrake(InputValue value)
     {
         isBraking = value.isPressed;
+        // PERFORMANCE: Set drag only on state change (not every FixedUpdate tick)
+        rb.linearDamping = isBraking ? brakeDrag : normalDrag;
         //Debug.Log($"[Player] OnBrake: {isBraking}");
     }
 
@@ -196,8 +202,9 @@ public class Player : MonoBehaviour
 
     private void HandleShooting()
     {
-
-        float triggerValue = playerInput.actions["Fire"].ReadValue<float>();
+        // PERFORMANCE: Use the cached _fireAction instead of playerInput.actions["Fire"]
+        // The string indexer does a dictionary lookup every frame — caching avoids that.
+        float triggerValue = _fireAction.ReadValue<float>();
 
         if (triggerValue > 0.5f && canShoot)
         {
