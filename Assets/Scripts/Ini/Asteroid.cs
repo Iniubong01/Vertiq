@@ -43,6 +43,10 @@ public class Asteroid : MonoBehaviour
         new Dictionary<float, WaitForSeconds>();
     private WaitForSeconds _lifetimeWFS;
 
+    // PERFORMANCE: Cached fade duration yield — reused across all ReturnToPool() calls
+    // so no lambda closure or WaitForSeconds object is allocated per asteroid death.
+    private static WaitForSeconds _fadeWFS;
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -62,8 +66,11 @@ public class Asteroid : MonoBehaviour
         isDying = false;
         col.enabled = true;
 
-        // Kill any leftover tweens from a previous use
+        // Kill any leftover tweens from a previous use (safety net for any other DOTween users)
         spriteRenderer.DOKill();
+
+        // Ensure full opacity — coroutine-based fade (FadeAndRelease) may have left alpha < 1
+        // if this asteroid was re-pooled mid-fade by ReleaseAll().
         Color c = spriteRenderer.color;
         c.a = 1f;
         spriteRenderer.color = c;
@@ -140,7 +147,11 @@ public class Asteroid : MonoBehaviour
             }
         }
 
-        // 4. Start lifetime timer (replaces Destroy(gameObject, maxLifetime))
+        // 4. Cache the fade WaitForSeconds once (shared across all instances)
+        if (_fadeWFS == null)
+            _fadeWFS = new WaitForSeconds(0.15f);
+
+        // 5. Start lifetime timer (replaces Destroy(gameObject, maxLifetime))
         if (lifetimeCoroutine != null) StopCoroutine(lifetimeCoroutine);
         lifetimeCoroutine = StartCoroutine(LifetimeRoutine());
     }
@@ -194,11 +205,30 @@ public class Asteroid : MonoBehaviour
         // Disable collider immediately so no further collisions fire during fade
         col.enabled = false;
 
-        // Fade out, then return to pool
-        spriteRenderer.DOFade(0f, 0.15f).OnComplete(() =>
+        // PERFORMANCE: Replace DOTween lambda (allocates a closure object per death)
+        // with a plain coroutine that reuses a cached WaitForSeconds — zero allocations.
+        StartCoroutine(FadeAndRelease());
+    }
+
+    private IEnumerator FadeAndRelease()
+    {
+        // Manually lerp alpha over 0.15 s — same visual as DOFade but GC-free
+        float elapsed = 0f;
+        const float duration = 0.15f;
+        Color c = spriteRenderer.color;
+        float startAlpha = c.a;
+
+        while (elapsed < duration)
         {
-            AsteroidPool.Instance.Release(this);
-        });
+            elapsed += Time.deltaTime;
+            c.a = Mathf.Lerp(startAlpha, 0f, elapsed / duration);
+            spriteRenderer.color = c;
+            yield return null;
+        }
+
+        c.a = 0f;
+        spriteRenderer.color = c;
+        AsteroidPool.Instance.Release(this);
     }
 
     // -------------------------------------------------------

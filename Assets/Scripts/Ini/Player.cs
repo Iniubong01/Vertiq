@@ -40,7 +40,12 @@ public class Player : MonoBehaviour
     [SerializeField] private GameObject bulletSpawnPoint;
     [Range(1, 10)] [SerializeField] public int powerLevel = 1;
     [SerializeField] private float spreadAngle = 10f;
-    [SerializeField] private float fireRate = 0.15f; 
+    [SerializeField] private float fireRate = 0.15f;
+
+    // PERFORMANCE: Cache WaitForSeconds for the fire rate — FireContinuously() runs
+    // every 0.15 s while shooting, which is ~6-7 allocations/sec = 400+/min of GC pressure.
+    // Cached once in Awake and reused for the lifetime of the component.
+    private WaitForSeconds _fireRateWFS;
     
     private Coroutine firingCoroutine; 
 
@@ -72,6 +77,9 @@ public class Player : MonoBehaviour
 
         // Cache InputAction reference once — eliminates per-frame string lookup
         _fireAction = playerInput.actions["Fire"];
+
+        // Cache fire-rate yield instruction — eliminates a heap allocation every shot interval
+        _fireRateWFS = new WaitForSeconds(fireRate);
 
         rb.gravityScale = 0f;
         rb.angularDamping = 0.1f;
@@ -224,8 +232,8 @@ public class Player : MonoBehaviour
     {
         while (true)
         {
-            Shoot(); 
-            yield return new WaitForSeconds(fireRate); 
+            Shoot();
+            yield return _fireRateWFS; // reuse cached object — no heap allocation per shot
         }
     }
 
@@ -241,6 +249,7 @@ public class Player : MonoBehaviour
 
             // Get from pool using this player's specific bullet prefab
             Bullet bullet = BulletPool.Instance.Get(bulletPrefab);
+            if (bullet == null) continue; // pool stall — skip this bullet safely
             bullet.transform.SetPositionAndRotation(bulletSpawnPoint.transform.position, rotation);
             bullet.Shoot(rotation * Vector2.up, bulletPrefab);
         }
@@ -280,7 +289,8 @@ public class Player : MonoBehaviour
 
     void OnCollisionEnter2D(Collision2D collision)
     {
-        if (collision.gameObject.tag == "Asteroid" && !PowerUpManager.Instance.shieldActive)
+        // PERFORMANCE: CompareTag() is faster than .tag == "..." and doesn't allocate a string.
+        if (collision.gameObject.CompareTag("Asteroid") && !PowerUpManager.Instance.shieldActive)
         {
             GameManager.Instance.OnPlayerDeath(this);
         }

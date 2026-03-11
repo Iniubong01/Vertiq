@@ -180,4 +180,5 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   speed: 520
-  maxLifetime: 10
+  maxLifetime: 4
+  prefabReference: {fileID: 0}

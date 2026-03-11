@@ -102,10 +102,20 @@ public class AsteroidPool : MonoBehaviour
 
         // Loop until we get a live object. Stale slots (externally Destroy()ed)
         // are discarded; the next Get() call will trigger createFunc for a fresh one.
+        // SAFETY CAP: never spin more than 100 times — a destroyed-but-not-GC'd object
+        // can keep returning Unity-null indefinitely and freeze the main thread.
         Asteroid asteroid;
+        int attempts = 0;
+        const int maxAttempts = 100;
         do
         {
             asteroid = pools[prefab].Get();
+            attempts++;
+            if (attempts >= maxAttempts)
+            {
+                Debug.LogError($"[AsteroidPool] Could not get a valid asteroid after {maxAttempts} attempts for prefab '{prefab.name}'. Pool may be exhausted or corrupted.");
+                return null;
+            }
         }
         while (asteroid == null); // Unity's == null returns true for destroyed objects
 

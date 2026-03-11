@@ -79,9 +79,12 @@ public class AsteroidSpawner : MonoBehaviour
         spawnTimer += Time.deltaTime;
         if (spawnTimer >= currentSpawnInterval)
         {
-            // PERFORMANCE: Subtract instead of zeroing — prevents drift that accumulates
-            // when the frame takes slightly longer than the interval.
-            spawnTimer -= currentSpawnInterval;
+            // PERFORMANCE: Reset to zero instead of subtracting one interval.
+            // Subtracting allowed a long GC/hitch frame to leave spawnTimer several
+            // intervals ahead, causing a back-to-back burst on the next frames that
+            // could stall the asteroid pool. Resetting is safe because elapsedTime
+            // is already capped and drives difficulty independently of spawnTimer.
+            spawnTimer = 0f;
             int amountThisWave = Mathf.Clamp(
                 baseAmountPerSpawn + Mathf.FloorToInt(elapsedTime * amountRamp),
                 baseAmountPerSpawn,
@@ -123,6 +126,7 @@ public class AsteroidSpawner : MonoBehaviour
 
             // 5. Get from pool (no Instantiate/GC spike)
             Asteroid asteroid = AsteroidPool.Instance.Get(prefab);
+            if (asteroid == null) continue; // pool stall — skip this asteroid safely
             asteroid.prefabReference = prefab;
             asteroid.transform.SetParent(asteroidParent);
             asteroid.transform.position = spawnPoint;

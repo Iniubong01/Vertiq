@@ -147,10 +147,9 @@ public class GameManager : MonoBehaviour
 
     private void NewGame()
     {
-        // PERFORMANCE: Return all active asteroids to the pool cleanly.
-        // Previously used FindObjectsOfType<Asteroid>() (slow, full scene scan) + Destroy()
-        // (broke the pool, forced re-instantiation, caused GC spikes on every new game).
+        // PERFORMANCE: Return all active asteroids and bullets to their pools cleanly.
         AsteroidPool.Instance.ReleaseAll();
+        if (BulletPool.Instance != null) BulletPool.Instance.ReleaseAll();
 
         gameOverUI.SetActive(false);
 
