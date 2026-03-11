@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
@@ -230,6 +230,8 @@ public class GameManager : MonoBehaviour
 
     public void OnPlayerDeath(Player player)
     {
+        if (playerDead) return; // Prevent multiple death triggers in the same frame
+
         player.gameObject.SetActive(false);
 
         explosionEffect.transform.position = player.transform.position;

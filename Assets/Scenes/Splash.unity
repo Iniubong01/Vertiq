@@ -4259,7 +4259,7 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
-      - m_Target: {fileID: 1770323071}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: LeaderboardDisplay, Assembly-CSharp
         m_MethodName: RefreshLeaderboard
         m_Mode: 1
@@ -54907,7 +54907,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1770323070}
   - component: {fileID: 1770323069}
-  - component: {fileID: 1770323071}
   m_Layer: 0
   m_Name: LeaderboardSystem
   m_TagString: Untagged
@@ -54944,42 +54943,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1770323071
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1770323068}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b1ee5172decf1b04a9f905a742625757, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LeaderboardDisplay
-  leaderboardId: vortiq_leaderboard
-  contentContainer: {fileID: 121301286}
-  firstPlacePrefab: {fileID: 6246719903111975104, guid: 4ba8049c5ecf1fe4d93946d72823e84b,
-    type: 3}
-  secondPlacePrefab: {fileID: 1131124759767655356, guid: bf13c37c04ae5334fb2ad5b8dc000f66,
-    type: 3}
-  thirdPlacePrefab: {fileID: 6180603102313634778, guid: bddbc5ee6df5c904b8455609bb5d3f69,
-    type: 3}
-  standardPrefab: {fileID: 6246719903111975104, guid: 43a3755fe69786743acd71f2689d8eba,
-    type: 3}
-  standardMePrefab: {fileID: 6246719903111975104, guid: b2b9e0e3b0edce34d9edfeb17c5b78bf,
-    type: 3}
-  myPositionContainer: {fileID: 1189237536}
-  myPositionPrefab: {fileID: 6246719903111975104, guid: b2b9e0e3b0edce34d9edfeb17c5b78bf,
-    type: 3}
-  avatarIcons:
-  - {fileID: 21300000, guid: 404d5d864a262a8448eb33cabcd201e0, type: 3}
-  - {fileID: 21300000, guid: 35d6b6ecde509a145af079df152d0e8f, type: 3}
-  - {fileID: 21300000, guid: 65fa2c179fc0c16438c66c02010480fd, type: 3}
-  - {fileID: 21300000, guid: dd0c74195e6d4444097815d7a6bd1431, type: 3}
-  - {fileID: 21300000, guid: 94e12dbb11d79294aaea5f6ff0ffbfff, type: 3}
-  - {fileID: 21300000, guid: 1da0efbb8a528fb4ea602aa777d8c19b, type: 3}
-  - {fileID: -9214101743034836120, guid: 4eebfee1d86288b44a614e2a4e2096c4, type: 3}
-  notificationPopup: {fileID: 5347610660300725914}
 --- !u!1 &1775577455
 GameObject:
   m_ObjectHideFlags: 0
