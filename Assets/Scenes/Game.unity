@@ -95287,7 +95287,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &602140418
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -168628,6 +168628,7 @@ MonoBehaviour:
   FT_AmountText: {fileID: 1427796145}
   MB_AmountText: {fileID: 873394640}
   FL_AmountText: {fileID: 1698758304}
+  selectionTimeoutDuration: 1.5
 --- !u!4 &1473243435
 Transform:
   m_ObjectHideFlags: 0

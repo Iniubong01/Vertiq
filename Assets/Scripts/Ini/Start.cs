@@ -13,5 +13,18 @@ public class StartGame : MonoBehaviour
         startButton.onClick.AddListener(LoadGame);
     }
     
-    private void LoadGame() { SceneManager.LoadScene("Game"); SoundManager.Instance.PlayButtonSound(); }
+    private void LoadGame() 
+    { 
+        if (SoundManager.Instance != null) SoundManager.Instance.PlayButtonSound(); 
+
+        UIManager uiManager = FindAnyObjectByType<UIManager>();
+        if (uiManager != null)
+        {
+            uiManager.LoadSceneWithLoadingScreen("Game");
+        }
+        else
+        {
+            SceneManager.LoadScene("Game"); 
+        }
+    }
 }

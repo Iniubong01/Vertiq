@@ -83,7 +83,16 @@ public class MenuInputHandler : MonoBehaviour
         {
             SoundManager.Instance.PlayButtonSound();
         }
-        SceneManager.LoadScene(gameSceneName);
+        
+        UIManager uiManager = FindAnyObjectByType<UIManager>();
+        if (uiManager != null)
+        {
+            uiManager.LoadSceneWithLoadingScreen(gameSceneName);
+        }
+        else
+        {
+            SceneManager.LoadScene(gameSceneName);
+        }
     }
 
     /// <summary>

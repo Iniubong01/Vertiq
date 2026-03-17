@@ -59,7 +59,7 @@ public class WalletConnector : MonoBehaviour
         Debug.Log($"[Wallet] Start. RPC: {Web3.Instance.customRpc}");
         Debug.Log($"[Wallet] alwaysShowUsernamePanel = {alwaysShowUsernamePanel}");
 
-        int shouldAutoConnect = PlayerPrefs.GetInt(AUTO_CONNECT_KEY, 1);
+        int shouldAutoConnect = PlayerPrefs.GetInt(AUTO_CONNECT_KEY, 0);
 
         if (shouldAutoConnect == 1)
         {

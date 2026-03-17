@@ -11,10 +11,13 @@ public class ScrollingBackground : MonoBehaviour
     {
         startPos = transform.position;
         repeatWidth = GetComponent<BoxCollider2D>().bounds.size.y;
-        // repeatWidth = GetComponent<BoxCollider2D>().bounds.size.y / 2;
     }
 
-    void FixedUpdate()
+    // PERFORMANCE: Visual-only movement belongs in Update, not FixedUpdate.
+    // FixedUpdate couples this to the physics timestep — when we widen the
+    // timestep to reduce physics cost, purely visual transforms should stay
+    // in Update for smooth, frame-rate-independent movement.
+    void Update()
     {
         transform.Translate(Vector3.down * scrollSpeed * Time.deltaTime);
 

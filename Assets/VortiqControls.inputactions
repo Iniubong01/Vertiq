@@ -95,6 +95,15 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
+                },
+                {
+                    "name": "Cancel Action",
+                    "type": "Button",
+                    "id": "92f8dc87-5ee8-4824-ad16-d6eda6a6bb03",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -353,6 +362,17 @@
                 },
                 {
                     "name": "",
+                    "id": "8f1466c2-3867-4007-ae93-651f10d02dba",
+                    "path": "<Gamepad>/buttonSouth",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Fire",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "6cc7939e-b0f3-4d7f-b6a2-4c1c3e3386de",
                     "path": "<Gamepad>/leftShoulder",
                     "interactions": "",
@@ -375,8 +395,8 @@
                 },
                 {
                     "name": "",
-                    "id": "b13a0323-3edf-4b19-9dc3-592f0dd5e17f",
-                    "path": "<Gamepad>/buttonWest",
+                    "id": "c3765861-fe02-4409-a36d-13d2e4e3e8f7",
+                    "path": "<Gamepad>/buttonNorth",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
@@ -387,7 +407,7 @@
                 {
                     "name": "",
                     "id": "2a35ac83-ca04-4632-b1f1-067970ffe7d4",
-                    "path": "<Gamepad>/buttonEast",
+                    "path": "<Gamepad>/buttonWest",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
@@ -425,6 +445,17 @@
                     "processors": "",
                     "groups": ";Gamepad",
                     "action": "Select",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "bc07b98a-aa7f-4f47-aa0a-05de69059eb5",
+                    "path": "<Gamepad>/buttonEast",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "Cancel Action",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

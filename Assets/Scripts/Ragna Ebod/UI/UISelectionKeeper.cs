@@ -123,10 +123,20 @@ public class UISelectionKeeper : MonoBehaviour
         }
     }
 
+    // PERFORMANCE: Cache GetComponent<Button>() results — IsValidButton() runs every frame
+    // in Update() when selection is lost, and GetComponent does a linear search each call.
+    private readonly Dictionary<GameObject, Button> _buttonCache = new Dictionary<GameObject, Button>();
+
     private bool IsValidButton(GameObject obj)
     {
         if (obj == null || !obj.activeInHierarchy) return false;
-        Button btn = obj.GetComponent<Button>();
+
+        if (!_buttonCache.TryGetValue(obj, out Button btn))
+        {
+            btn = obj.GetComponent<Button>();
+            _buttonCache[obj] = btn;
+        }
+
         return btn != null && btn.interactable && !IsExcluded(btn);
     }
 

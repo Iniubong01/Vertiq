@@ -19,7 +19,9 @@ public class PowerUp : MonoBehaviour
         {
             PowerUpManager.Instance.ActivatePowerUp(type, duration);
             Destroy(gameObject);
+#if UNITY_EDITOR
             Debug.Log($"Player picked {type}");
+#endif
         }
     }
 

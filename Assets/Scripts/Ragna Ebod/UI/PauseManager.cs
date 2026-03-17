@@ -31,8 +31,21 @@ public class PauseManager : MonoBehaviour
         {
             pauseMenuCanvas.SetActive(false);
         }
+
+        // Fix: Explicitly hook the resume button to CloseMenu in code to avoid inspector detaches
+        // ensuring isPaused state correctly updates when the user clicks 'Resume'
+        if (resumeButton != null)
+        {
+            UnityEngine.UI.Button btn = resumeButton.GetComponent<UnityEngine.UI.Button>();
+            if (btn != null)
+            {
+                btn.onClick.AddListener(CloseMenu);
+            }
+        }
         
+#if UNITY_EDITOR
         Debug.Log("[PauseManager] Game scene initialized - Time.timeScale = 1.0");
+#endif
     }
 
     private void OnEnable()
@@ -58,21 +71,27 @@ public class PauseManager : MonoBehaviour
         // Ignore input for 0.5 seconds after scene load to prevent accidental pause
         if (Time.unscaledTime - sceneLoadTime < 0.5f)
         {
+#if UNITY_EDITOR
             Debug.Log("[PauseManager] Ignoring pause - scene just loaded");
+#endif
             return;
         }
         
         // Cooldown to prevent rapid toggling
         if (Time.unscaledTime - lastPauseToggleTime < PAUSE_COOLDOWN)
         {
+#if UNITY_EDITOR
             Debug.Log($"[PauseManager] Ignoring pause - cooldown active ({Time.unscaledTime - lastPauseToggleTime:F2}s since last toggle)");
+#endif
             return;
         }
         
         // Don't pause if a power-up was just activated
         if (PowerUpManager.Instance != null && PowerUpManager.Instance.WasPowerUpJustActivated())
         {
+#if UNITY_EDITOR
             Debug.Log("[PauseManager] Ignoring pause - power-up just activated");
+#endif
             return;
         }
         
@@ -84,7 +103,9 @@ public class PauseManager : MonoBehaviour
         // Additional check: Don't pause if power-up just activated
         if (PowerUpManager.Instance != null && PowerUpManager.Instance.WasPowerUpJustActivated())
         {
+#if UNITY_EDITOR
             Debug.Log("[PauseManager] Ignoring pause toggle - power-up just activated");
+#endif
             return;
         }
         
@@ -93,7 +114,9 @@ public class PauseManager : MonoBehaviour
         
         isPaused = !isPaused;
         
+#if UNITY_EDITOR
         Debug.Log($"[PauseManager] Toggling pause - New state: {(isPaused ? "PAUSED" : "UNPAUSED")}");
+#endif
 
         if (isPaused)
         {
@@ -137,7 +160,9 @@ public class PauseManager : MonoBehaviour
             }
         }
         
+#if UNITY_EDITOR
         Debug.Log("[PauseManager] Pause menu opened - Time.timeScale = 0");
+#endif
     }
 
     public void CloseMenu()
@@ -164,7 +189,9 @@ public class PauseManager : MonoBehaviour
         EventSystem.current.SetSelectedGameObject(null);
         isPaused = false;
         
+#if UNITY_EDITOR
         Debug.Log("[PauseManager] Pause menu closed - Time.timeScale = 1");
+#endif
     }
 
     public void LoadHomeScene()

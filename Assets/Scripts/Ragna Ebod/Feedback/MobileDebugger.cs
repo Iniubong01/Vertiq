@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 public class MobileDebugger : MonoBehaviour
 {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
     private Queue<string> logQueue = new Queue<string>();
     private string output = "";
     private Vector2 scrollPosition;
@@ -26,8 +27,6 @@ public class MobileDebugger : MonoBehaviour
         if (logQueue.Count > 20) logQueue.Dequeue(); // Keep last 20 logs
 
         output = string.Join("\n\n", logQueue.ToArray());
-        
-        // Auto-scroll logic could go here, but usually just updating output is enough
     }
 
     void OnGUI()
@@ -56,4 +55,5 @@ public class MobileDebugger : MonoBehaviour
         if (Input.touchCount == 3 && Input.GetTouch(0).phase == TouchPhase.Began)
             isVisible = !isVisible;
     }
+#endif
 }

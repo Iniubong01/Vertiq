@@ -39,6 +39,13 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Slider progressBar;
     [SerializeField] private TextMeshProUGUI progressText;
 
+    [Header("Loading Tips")]
+    [SerializeField] private Image loadingTipImage;
+    [SerializeField] private Sprite[] loadingTipSprites;
+    [SerializeField] private float tipDisplayDuration = 2.5f;
+    [SerializeField] private float tipTransitionDuration = 0.5f;
+    private Coroutine tipSequenceCoroutine;
+
     [Header("Text References")]
     [SerializeField] private TextMeshProUGUI coinText;
     [SerializeField] private TextMeshProUGUI coinTextStore;
@@ -186,25 +193,166 @@ public class UIManager : MonoBehaviour
         PlayClickSound(); 
     }*/
 
+    private float GetMinimumLoadingTime()
+    {
+        if (loadingTipSprites == null || loadingTipSprites.Length == 0) return 0.5f;
+        // Total time for all tips to show once: (fade-in + display + fade-out) per tip
+        return loadingTipSprites.Length * (tipDisplayDuration + tipTransitionDuration * 2f);
+    }
+
+    private void StartTipSequence()
+    {
+        if (loadingTipImage != null && loadingTipSprites != null && loadingTipSprites.Length > 0)
+        {
+            if (tipSequenceCoroutine != null) StopCoroutine(tipSequenceCoroutine);
+            tipSequenceCoroutine = StartCoroutine(CycleLoadingTips());
+        }
+    }
+
+    private void StopTipSequence()
+    {
+        if (tipSequenceCoroutine != null)
+        {
+            StopCoroutine(tipSequenceCoroutine);
+            tipSequenceCoroutine = null;
+        }
+    }
+
+    private IEnumerator CycleLoadingTips()
+    {
+        int currentIndex = 0; // Start at the first image to show them all in order
+        
+        while (true)
+        {
+            // Set the sprite immediately for the first load or after fade out
+            loadingTipImage.sprite = loadingTipSprites[currentIndex];
+            
+            // Fade in and scale up slightly
+            loadingTipImage.DOFade(1f, tipTransitionDuration);
+            loadingTipImage.rectTransform.DOScale(Vector3.one, tipTransitionDuration).From(Vector3.one * 0.9f);
+            
+            // Wait while it is displayed
+            yield return new WaitForSeconds(tipDisplayDuration);
+            
+            // Fade out
+            yield return loadingTipImage.DOFade(0f, tipTransitionDuration).WaitForCompletion();
+
+            // Prepare next tip
+            currentIndex = (currentIndex + 1) % loadingTipSprites.Length;
+        }
+    }
+
     public IEnumerator ShowLoadingUI(CanvasGroup targetUI)
     {
         if (loadingUICG == null) yield break;
+        
+        // Setup initial tip state before fade in
+        if (loadingTipImage != null)
+        {
+            Color c = loadingTipImage.color;
+            c.a = 0;
+            loadingTipImage.color = c;
+        }
+        StartTipSequence();
+
         loadingUICG.gameObject.SetActive(true);
         loadingUICG.alpha = 0;
         progressBar.value = 0f;
         progressText.text = "0%";
         yield return loadingUICG.DOFade(1, fadeDuration).WaitForCompletion();
+        
+        float minimumLoadTime = GetMinimumLoadingTime();
+        float timePassed = 0f;
         float displayProgress = 0f;
         while (displayProgress < 0.99f)
         {
-            displayProgress = Mathf.MoveTowards(displayProgress, 1f, Time.deltaTime * 2f);
+            timePassed += Time.deltaTime;
+            displayProgress = Mathf.Clamp01(timePassed / minimumLoadTime);
+            
             progressBar.value = displayProgress;
             progressText.text = Mathf.RoundToInt(displayProgress * 100) + "%";
             yield return null;
         }
+        
+        StopTipSequence();
+
         yield return loadingUICG.DOFade(0, fadeDuration).WaitForCompletion();
         loadingUICG.gameObject.SetActive(false);
         if (targetUI != null) SetCanvasGroupActive(targetUI);
+    }
+
+    public void LoadSceneWithLoadingScreen(string sceneName)
+    {
+        StartCoroutine(LoadSceneAsyncCoroutine(sceneName));
+    }
+
+    private IEnumerator LoadSceneAsyncCoroutine(string sceneName)
+    {
+        // Disable all menu UI instantly so they don't overlay
+        SetCanvasGroupInActive(menuUICG);
+        SetCanvasGroupInActive(storeUICG);
+        SetCanvasGroupInActive(solStoreUICG);
+        SetCanvasGroupInActive(leaderboardUICG);
+        
+        if (loadingUICG == null) 
+        {
+            SceneManager.LoadScene(sceneName);
+            yield break;
+        }
+
+        // Setup initial tip state before fade in
+        if (loadingTipImage != null)
+        {
+            Color c = loadingTipImage.color;
+            c.a = 0;
+            loadingTipImage.color = c;
+        }
+        StartTipSequence();
+
+        loadingUICG.gameObject.SetActive(true);
+        loadingUICG.alpha = 0;
+        progressBar.value = 0f;
+        progressText.text = "0%";
+        
+        // Fade in loading screen
+        yield return loadingUICG.DOFade(1, fadeDuration).WaitForCompletion();
+
+        // Start async loading
+        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName);
+        asyncLoad.allowSceneActivation = false;
+
+        float minimumLoadTime = GetMinimumLoadingTime();
+        float timePassed = 0f;
+        float displayProgress = 0f;
+
+        while (!asyncLoad.isDone)
+        {
+            timePassed += Time.deltaTime;
+            float timeProgress = Mathf.Clamp01(timePassed / minimumLoadTime);
+            
+            // asyncLoad.progress stops at 0.9f before scene activation is allowed
+            float targetProgress = Mathf.Clamp01(asyncLoad.progress / 0.9f);
+            
+            // Increment the display progress smoothly, bounding it by both actual load speed and the tip sequence minimum duration
+            displayProgress = Mathf.Min(timeProgress, targetProgress);
+            
+            progressBar.value = displayProgress;
+            progressText.text = Mathf.RoundToInt(displayProgress * 100) + "%";
+
+            // Visual complete and loading done
+            if (asyncLoad.progress >= 0.9f && displayProgress >= 0.99f)
+            {
+                progressBar.value = 1f;
+                progressText.text = "100%";
+                StopTipSequence();
+                
+                // Brief pause to show 100%
+                yield return new WaitForSeconds(0.2f);
+                asyncLoad.allowSceneActivation = true;
+            }
+
+            yield return null;
+        }
     }
 
     private void SetCanvasGroupActive(CanvasGroup tUI)

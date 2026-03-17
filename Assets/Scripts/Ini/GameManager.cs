@@ -8,6 +8,10 @@ using UnityEngine.InputSystem;
 [DefaultExecutionOrder(-1)]
 public class GameManager : MonoBehaviour
 {
+    // PERFORMANCE: Throttle enemy death SFX — at peak difficulty, 5+ asteroids
+    // can die in a single frame. PlayOneShot stacking causes audio CPU spikes.
+    private float _lastEnemyDeathSfxTime;
+    private const float ENEMY_DEATH_SFX_COOLDOWN = 0.05f; // ~20 per second max
     public static GameManager Instance { get; private set; }
 
     [Header("Leaderboards")]
@@ -208,11 +212,21 @@ public class GameManager : MonoBehaviour
 
     public void OnAsteroidDestroyed(Asteroid asteroid)
     {
-        obstaclesKilled++; // Add this line
+        obstaclesKilled++;
+
+        // PERFORMANCE: Stop before Play to prevent overlapping particle emissions.
+        // Without Stop(), rapid kills stack emission bursts on the same system,
+        // causing an ever-growing particle count and rendering spike.
         enemyExplosionEffect.transform.position = asteroid.transform.position;
+        enemyExplosionEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         enemyExplosionEffect.Play();
 
-        SoundManager.Instance.PlayEnemyDeathClip();
+        // PERFORMANCE: Throttle enemy death SFX to prevent PlayOneShot pile-up
+        if (Time.time - _lastEnemyDeathSfxTime >= ENEMY_DEATH_SFX_COOLDOWN)
+        {
+            _lastEnemyDeathSfxTime = Time.time;
+            SoundManager.Instance.PlayEnemyDeathClip();
+        }
 
         if (asteroid.size < 0.7f)
         {
@@ -262,7 +276,9 @@ public class GameManager : MonoBehaviour
             if (gameOverCanvasGroup != null)
                 StartCoroutine(FadeInGameOver());
                 
+#if UNITY_EDITOR
             Debug.Log("Game Over!");
+#endif
 
             // [UPDATED] Use the Singleton Instance instead of the inspector reference
             if (DualLeaderboardManager.Instance != null)
@@ -313,7 +329,9 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+#if UNITY_EDITOR
         Debug.Log("Game Restart!");
+#endif
         SoundManager.Instance.PlayButtonSound();
     }
 
@@ -327,6 +345,14 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1;
         SoundManager.Instance.PlayButtonSound();
+        
+        // Ensure PauseManager and PowerUp states are reset if this is called
+        // directly from an external UI button.
+        PauseManager pm = Object.FindFirstObjectByType<PauseManager>();
+        if (pm != null)
+        {
+            pm.CloseMenu();
+        }
     }
 
     public void QuitGame()

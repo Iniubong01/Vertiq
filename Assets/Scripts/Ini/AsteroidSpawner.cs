@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 public class AsteroidSpawner : MonoBehaviour
 {
@@ -34,7 +34,7 @@ public class AsteroidSpawner : MonoBehaviour
 
     [Header("Performance")]
     [Tooltip("Hard cap on simultaneous live asteroids. Waves are skipped when this is reached.")]
-    [SerializeField] private int maxActiveAsteroids = 40;
+    [SerializeField] private int maxActiveAsteroids = 18;
 
     // Cached camera bounds — computed once in Start(), never per-spawn
     private float _camHalfH;

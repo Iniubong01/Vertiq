@@ -43,8 +43,16 @@ public class PowerUpManager : MonoBehaviour
     [SerializeField] TextMeshProUGUI S_AmountText, FT_AmountText, MB_AmountText, FL_AmountText; 
 
     private int currentSelectionIndex = 0;
+    
+    // NAVIGATION AND TIMEOUT
     private float lastNavigationTime = 0f;
     private const float NAVIGATION_COOLDOWN = 0.25f; // 250ms between navigation inputs
+    
+    [Header("Activation Timeout Settings")]
+    [Tooltip("How long a powerup stays 'selected' and activatable after navigating to it")]
+    public float selectionTimeoutDuration = 3.0f;
+    private float lastSelectionActiveTime = 0f;
+    private bool isSelectionActive = false;
 
     // Cached interactable states — avoids setting Button.interactable every frame,
     // which triggers a Canvas rebuild (very expensive)
@@ -70,6 +78,10 @@ public class PowerUpManager : MonoBehaviour
     private static readonly WaitForEndOfFrame _waitEOF = new WaitForEndOfFrame();
     private static readonly WaitForSeconds _buttonCooldownWFS = new WaitForSeconds(0.1f);
 
+    // PERFORMANCE: Cached WaitForSeconds for powerUpDuration — eliminates a heap
+    // allocation on every power-up activation coroutine.
+    private WaitForSeconds _powerUpDurationWFS;
+
     private void Awake()
     {
         Instance = this;
@@ -82,6 +94,9 @@ public class PowerUpManager : MonoBehaviour
 
         if (pObj != null) player = pObj.GetComponent<Player>();
         else Debug.LogError("[PowerUpManager] Player object not found!");
+
+        // Cache the duration yield once — reused across all power-up coroutines
+        _powerUpDurationWFS = new WaitForSeconds(powerUpDuration);
 
         // FIX: Add listeners that mark when power-ups are activated
         SButton.onClick.AddListener(() => { MarkPowerUpActivation(); ShieldBL(); });
@@ -120,6 +135,13 @@ public class PowerUpManager : MonoBehaviour
 
     private void Update()
     {
+        // Handle selection timeout visual revert
+        if (isSelectionActive && Time.time - lastSelectionActiveTime > selectionTimeoutDuration)
+        {
+            isSelectionActive = false;
+            UpdateSelectionVisuals(); // Will reset visuals to unselected state
+        }
+
         // PERFORMANCE: Only set Button.interactable when the value actually changes.
         // Setting it unconditionally every frame triggers a Canvas rebuild every frame,
         // which is a major draw-call spike. We cache the last known state and skip the
@@ -149,6 +171,10 @@ public class PowerUpManager : MonoBehaviour
         
         lastNavigationTime = Time.unscaledTime;
         
+        // Timeout tracking
+        isSelectionActive = true;
+        lastSelectionActiveTime = Time.time;
+        
         int startIndex = currentSelectionIndex;
         int attempts = 0;
         int maxAttempts = powerUpButtons.Count; // Prevent infinite loop
@@ -170,6 +196,7 @@ public class PowerUpManager : MonoBehaviour
             {
                 //Debug.LogWarning("[PowerUpManager] All power-ups are disabled!");
                 currentSelectionIndex = startIndex; // Stay on current selection
+                isSelectionActive = false; // No valid buttons
                 break;
             }
             
@@ -189,6 +216,13 @@ public class PowerUpManager : MonoBehaviour
             return;
         }
         
+        // Timeout check: Only allow activation if we are within the timeout window
+        if (!isSelectionActive)
+        {
+            //Debug.Log("[PowerUpManager] Cannot trigger powerup - selection timed out");
+            return;
+        }
+        
         if (currentSelectionIndex < 0 || currentSelectionIndex >= powerUpButtons.Count)
         {
             //Debug.LogWarning($"[PowerUpManager] Invalid selection index: {currentSelectionIndex}");
@@ -200,6 +234,12 @@ public class PowerUpManager : MonoBehaviour
         if (selectedButton.interactable)
         {
             //Debug.Log($"[PowerUpManager] Triggering powerup: {selectedButton.name}");
+            
+            // Successfully activated. Clear the selection active state so it shrinks
+            // and cannot be immediately double-activated without navigating again.
+            isSelectionActive = false; 
+            UpdateSelectionVisuals();
+            
             selectedButton.onClick.Invoke();
         }
         else
@@ -212,9 +252,9 @@ public class PowerUpManager : MonoBehaviour
     {
         for (int i = 0; i < powerUpButtons.Count; i++)
         {
-            if (i == currentSelectionIndex)
+            if (i == currentSelectionIndex && isSelectionActive)
             {
-                // Selected button - scale up and highlight
+                // Selected button AND selection is active - scale up and highlight
                 powerUpButtons[i].transform.localScale = Vector3.one * 1.3f;
                 
                 // Optional: Change color to indicate selection
@@ -224,7 +264,7 @@ public class PowerUpManager : MonoBehaviour
             }
             else
             {
-                // Not selected - normal scale and color
+                // Not selected OR timed out - normal scale and color
                 powerUpButtons[i].transform.localScale = Vector3.one;
                 
                 // Reset to default color
@@ -265,7 +305,7 @@ public class PowerUpManager : MonoBehaviour
 
     private IEnumerator ResetMultipleBullets(float duration)
     {
-        yield return new WaitForSeconds(duration);
+        yield return _powerUpDurationWFS;
         
         // Restore
         if(player != null) player.powerLevel = originalPowerLevel;
@@ -299,7 +339,7 @@ public class PowerUpManager : MonoBehaviour
 
     private IEnumerator ResetShield(float duration)
     {
-        yield return new WaitForSeconds(duration);
+        yield return _powerUpDurationWFS;
         shieldActive = false;
         //? Todo: Fix this using player.cs
         // shield.SetActive(false);
@@ -324,7 +364,7 @@ public class PowerUpManager : MonoBehaviour
 
     private IEnumerator ResetFreezeTime(float duration)
     {
-        yield return new WaitForSeconds(duration);
+        yield return _powerUpDurationWFS;
         freezeTimeActive = false;
         OnFreezeChanged?.Invoke(false);
         freezeCoroutine = null;
@@ -349,7 +389,7 @@ public class PowerUpManager : MonoBehaviour
     private IEnumerator ResetFullLivesIndicator(float duration)
     {
         fullLives = true;
-        yield return new WaitForSeconds(duration);
+        yield return _powerUpDurationWFS;
         fullLives = false;
         livesCoroutine = null;
     }

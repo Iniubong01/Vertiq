@@ -181,6 +181,15 @@ public partial class @VortiqControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Cancel Action"",
+                    ""type"": ""Button"",
+                    ""id"": ""92f8dc87-5ee8-4824-ad16-d6eda6a6bb03"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -439,6 +448,17 @@ public partial class @VortiqControls: IInputActionCollection2, IDisposable
                 },
                 {
                     ""name"": """",
+                    ""id"": ""8f1466c2-3867-4007-ae93-651f10d02dba"",
+                    ""path"": ""<Gamepad>/buttonSouth"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Fire"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
                     ""id"": ""6cc7939e-b0f3-4d7f-b6a2-4c1c3e3386de"",
                     ""path"": ""<Gamepad>/leftShoulder"",
                     ""interactions"": """",
@@ -461,8 +481,8 @@ public partial class @VortiqControls: IInputActionCollection2, IDisposable
                 },
                 {
                     ""name"": """",
-                    ""id"": ""b13a0323-3edf-4b19-9dc3-592f0dd5e17f"",
-                    ""path"": ""<Gamepad>/buttonWest"",
+                    ""id"": ""c3765861-fe02-4409-a36d-13d2e4e3e8f7"",
+                    ""path"": ""<Gamepad>/buttonNorth"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": "";Gamepad"",
@@ -473,7 +493,7 @@ public partial class @VortiqControls: IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""2a35ac83-ca04-4632-b1f1-067970ffe7d4"",
-                    ""path"": ""<Gamepad>/buttonEast"",
+                    ""path"": ""<Gamepad>/buttonWest"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": "";Gamepad"",
@@ -511,6 +531,17 @@ public partial class @VortiqControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""groups"": "";Gamepad"",
                     ""action"": ""Select"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""bc07b98a-aa7f-4f47-aa0a-05de69059eb5"",
+                    ""path"": ""<Gamepad>/buttonEast"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": "";Gamepad"",
+                    ""action"": ""Cancel Action"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 }
@@ -1108,6 +1139,7 @@ public partial class @VortiqControls: IInputActionCollection2, IDisposable
         m_Player_Pause = m_Player.FindAction("Pause", throwIfNotFound: true);
         m_Player_Start = m_Player.FindAction("Start", throwIfNotFound: true);
         m_Player_Select = m_Player.FindAction("Select", throwIfNotFound: true);
+        m_Player_CancelAction = m_Player.FindAction("Cancel Action", throwIfNotFound: true);
         // UI
         m_UI = asset.FindActionMap("UI", throwIfNotFound: true);
         m_UI_Navigate = m_UI.FindAction("Navigate", throwIfNotFound: true);
@@ -1211,6 +1243,7 @@ public partial class @VortiqControls: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_Pause;
     private readonly InputAction m_Player_Start;
     private readonly InputAction m_Player_Select;
+    private readonly InputAction m_Player_CancelAction;
     /// <summary>
     /// Provides access to input actions defined in input action map "Player".
     /// </summary>
@@ -1262,6 +1295,10 @@ public partial class @VortiqControls: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Player/Select".
         /// </summary>
         public InputAction @Select => m_Wrapper.m_Player_Select;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/CancelAction".
+        /// </summary>
+        public InputAction @CancelAction => m_Wrapper.m_Player_CancelAction;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -1318,6 +1355,9 @@ public partial class @VortiqControls: IInputActionCollection2, IDisposable
             @Select.started += instance.OnSelect;
             @Select.performed += instance.OnSelect;
             @Select.canceled += instance.OnSelect;
+            @CancelAction.started += instance.OnCancelAction;
+            @CancelAction.performed += instance.OnCancelAction;
+            @CancelAction.canceled += instance.OnCancelAction;
         }
 
         /// <summary>
@@ -1359,6 +1399,9 @@ public partial class @VortiqControls: IInputActionCollection2, IDisposable
             @Select.started -= instance.OnSelect;
             @Select.performed -= instance.OnSelect;
             @Select.canceled -= instance.OnSelect;
+            @CancelAction.started -= instance.OnCancelAction;
+            @CancelAction.performed -= instance.OnCancelAction;
+            @CancelAction.canceled -= instance.OnCancelAction;
         }
 
         /// <summary>
@@ -1729,6 +1772,13 @@ public partial class @VortiqControls: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnSelect(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Cancel Action" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnCancelAction(InputAction.CallbackContext context);
     }
     /// <summary>
     /// Interface to implement callback methods for all input action callbacks associated with input actions defined by "UI" which allows adding and removing callbacks.

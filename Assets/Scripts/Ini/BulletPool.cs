@@ -16,6 +16,10 @@ public class BulletPool : MonoBehaviour
     // Allows null-safe iteration and future ReleaseAll() without FindObjectsOfType.
     private readonly HashSet<Bullet> _activeBullets = new HashSet<Bullet>();
 
+    // PERFORMANCE: Pre-allocated scratch buffer for ReleaseAll() snapshots.
+    // Reused each call — eliminates the "new List" allocation on every game-over.
+    private readonly List<Bullet> _snapshotBuffer = new List<Bullet>();
+
     private void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
@@ -100,8 +104,11 @@ public class BulletPool : MonoBehaviour
     /// </summary>
     public void ReleaseAll()
     {
-        var snapshot = new List<Bullet>(_activeBullets);
-        foreach (Bullet b in snapshot)
+        // PERFORMANCE: Copy active set into a reusable List (no new array each call).
+        _snapshotBuffer.Clear();
+        _snapshotBuffer.AddRange(_activeBullets);
+
+        foreach (Bullet b in _snapshotBuffer)
         {
             if (b != null) Release(b);
         }

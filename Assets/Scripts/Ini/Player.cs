@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
 
@@ -58,6 +58,10 @@ public class Player : MonoBehaviour
     [SerializeField] private AudioClip shootClip;
     
     public static bool canShoot = true;
+
+    // PERFORMANCE: Throttle shoot SFX
+    private float _lastShootSfxTime;
+    private const float SHOOT_SFX_COOLDOWN = 0.1f;
 
     [Header("Animation Settings")]
     public PlayerType playerType;
@@ -254,7 +258,12 @@ public class Player : MonoBehaviour
             bullet.Shoot(rotation * Vector2.up, bulletPrefab);
         }
 
-        if (audioSource && shootClip) audioSource.PlayOneShot(shootClip);
+        // PERFORMANCE: Throttle shot sound
+        if (audioSource && shootClip && (Time.time - _lastShootSfxTime >= SHOOT_SFX_COOLDOWN))
+        {
+            _lastShootSfxTime = Time.time;
+            audioSource.PlayOneShot(shootClip);
+        }
     }
 
     private void OnEnable()

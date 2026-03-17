@@ -1,4 +1,4 @@
-﻿using DG.Tweening;
+using DG.Tweening;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -23,7 +23,7 @@ public class Asteroid : MonoBehaviour
     public float minSize = 0.35f;
     public float maxSize = 1.65f;
     public float movementSpeed = 50f;
-    public float maxLifetime = 30f;
+    public float maxLifetime = 15f;
 
     // Pool tracking — set by AsteroidPool or CreateSplit before activation
     [HideInInspector] public Asteroid prefabReference;
@@ -175,13 +175,21 @@ public class Asteroid : MonoBehaviour
     // COLLISION
     // -------------------------------------------------------
 
+    // PERFORMANCE: Hard cap on active asteroid count for splits.
+    // At peak difficulty the spawner is already at the cap; allowing unlimited
+    // split cascades pushes the physics body count far beyond what the engine
+    // can handle, causing the "3-minute lag" spike.
+    private const int MAX_ACTIVE_FOR_SPLITS = 20;
+
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (isDying) return; // Already fading — ignore further hits
         if (!collision.gameObject.CompareTag("Bullet")) return;
 
-        // Split into two smaller asteroids
-        if ((size * 0.5f) >= minSize)
+        // PERFORMANCE: Only split if we're under the split cap.
+        // This prevents cascade explosions from flooding the physics engine
+        // with dozens of bodies in a single frame.
+        if ((size * 0.5f) >= minSize && ActiveCount < MAX_ACTIVE_FOR_SPLITS)
         {
             CreateSplit();
             CreateSplit();
